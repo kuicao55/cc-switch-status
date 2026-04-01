@@ -29,7 +29,7 @@ export function TrayPopup() {
     <div className="w-[320px] bg-[#2d2d2d] rounded-xl overflow-hidden text-white">
       <AppNavBar active={activeApp} onChange={setActiveApp} />
       <ProviderList appType={activeApp as AppId} />
-      <UsageDisplay />
+      <UsageDisplay appId={activeApp as AppId} />
       <div className="flex p-2 gap-2">
         <button
           onClick={handleOpenMainWindow}
