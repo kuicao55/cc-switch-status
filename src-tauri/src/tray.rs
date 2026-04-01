@@ -3,11 +3,17 @@
 //! 负责系统托盘图标和菜单的创建、更新和事件处理。
 
 use tauri::menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem};
+use tauri::WebviewWindowBuilder;
 use tauri::{Emitter, Manager};
+use tauri_plugin_positioner::{Position, WindowExt};
 
 use crate::app_config::AppType;
 use crate::error::AppError;
 use crate::store::AppState;
+
+pub fn tray_popup_mode_enabled() -> bool {
+    true
+}
 
 /// 托盘菜单文本（国际化）
 #[derive(Clone, Copy)]
@@ -260,10 +266,12 @@ fn handle_auto_click(app: &tauri::AppHandle, app_type: &AppType) -> Result<(), A
             )));
         }
 
-        // 4) 更新托盘菜单
-        if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
-            if let Some(tray) = app.tray_by_id("main") {
-                let _ = tray.set_menu(Some(new_menu));
+        // 4) 更新托盘菜单（popup 模式下不再挂载原生菜单）
+        if !tray_popup_mode_enabled() {
+            if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
+                if let Some(tray) = app.tray_by_id("main") {
+                    let _ = tray.set_menu(Some(new_menu));
+                }
             }
         }
 
@@ -308,10 +316,12 @@ fn handle_provider_click(
         )
         .map_err(AppError::Message)?;
 
-        // 更新托盘菜单
-        if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
-            if let Some(tray) = app.tray_by_id("main") {
-                let _ = tray.set_menu(Some(new_menu));
+        // 更新托盘菜单（popup 模式下不再挂载原生菜单）
+        if !tray_popup_mode_enabled() {
+            if let Ok(new_menu) = create_tray_menu(app, app_state.inner()) {
+                if let Some(tray) = app.tray_by_id("main") {
+                    let _ = tray.set_menu(Some(new_menu));
+                }
             }
         }
 
@@ -410,6 +420,10 @@ pub fn create_tray_menu(
 }
 
 pub fn refresh_tray_menu(app: &tauri::AppHandle) {
+    if tray_popup_mode_enabled() {
+        return;
+    }
+
     use crate::store::AppState;
 
     if let Some(state) = app.try_state::<AppState>() {
@@ -486,4 +500,78 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
             log::warn!("未处理的菜单事件: {event_id}");
         }
     }
+}
+
+/// 显示托盘弹出窗口
+pub fn show_tray_popup(app: &tauri::AppHandle) -> Result<(), AppError> {
+    log::info!("[TrayPopup] show_tray_popup requested");
+
+    // Check if window already exists
+    if let Some(window) = app.get_webview_window("tray_popup") {
+        let is_visible = window.is_visible().unwrap_or(false);
+        log::info!(
+            "[TrayPopup] existing window found: visible={}, label=tray_popup",
+            is_visible
+        );
+        if is_visible {
+            log::info!("[TrayPopup] hiding existing popup");
+            let _ = window.hide();
+        } else {
+            // 重新定位并显示
+            let window_clone = window.clone();
+            tauri::async_runtime::spawn(async move {
+                log::info!("[TrayPopup] re-showing existing popup");
+                let _ = window_clone.move_window(Position::TrayCenter);
+                log::info!("[TrayPopup] moved existing popup to tray center");
+                let _ = window_clone.show();
+                log::info!("[TrayPopup] showed existing popup");
+                let _ = window_clone.set_focus();
+                log::info!("[TrayPopup] focused existing popup");
+            });
+        }
+        return Ok(());
+    }
+
+    log::info!("[TrayPopup] creating new popup window");
+    // Create new popup window (hidden first, position before showing)
+    let window = WebviewWindowBuilder::new(
+        app,
+        "tray_popup",
+        tauri::WebviewUrl::App("index.html?tray_popup=1".into()),
+    )
+    .title("CC Switch")
+    .inner_size(320.0, 520.0)
+    .resizable(false)
+    .decorations(false)
+    .always_on_top(true)
+    .background_color(
+        "#2d2d2d"
+            .parse()
+            .map_err(|e| AppError::Message(format!("Invalid popup background color: {e}")))?,
+    )
+    .visible(false) // 先隐藏，定位后再显示
+    .skip_taskbar(true)
+    .focused(true)
+    .build()
+    .map_err(|e| AppError::Message(format!("Create popup window: {}", e)))?;
+    log::info!("[TrayPopup] popup window built");
+
+    // 使用 positioner 精确定位到托盘图标下方
+    let window_clone = window.clone();
+    tauri::async_runtime::spawn(async move {
+        log::info!("[TrayPopup] popup spawn begin");
+        // TrayCenter 会将窗口定位到托盘图标下方居中
+        if let Err(e) = window_clone.move_window(Position::TrayCenter) {
+            log::error!("Failed to position tray popup: {e}");
+        } else {
+            log::info!("[TrayPopup] popup positioned at tray center");
+        }
+        // 定位完成后显示窗口
+        let _ = window_clone.show();
+        log::info!("[TrayPopup] popup shown");
+        let _ = window_clone.set_focus();
+        log::info!("[TrayPopup] popup focused");
+    });
+
+    Ok(())
 }

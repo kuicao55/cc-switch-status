@@ -58,7 +58,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use std::sync::Arc;
 #[cfg(target_os = "macos")]
 use tauri::image::Image;
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::RunEvent;
 use tauri::{Emitter, Manager};
 
@@ -160,6 +160,10 @@ async fn update_tray_menu(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
+    if tray::tray_popup_mode_enabled() {
+        return Ok(false);
+    }
+
     match tray::create_tray_menu(&app, state.inner()) {
         Ok(new_menu) => {
             if let Some(tray) = app.tray_by_id("main") {
@@ -174,6 +178,11 @@ async fn update_tray_menu(
             Ok(false)
         }
     }
+}
+
+#[tauri::command]
+fn log_tray_popup_debug(label: String, snapshot: serde_json::Value) {
+    log::info!("[TrayPopup][{label}] {snapshot}");
 }
 
 #[cfg(target_os = "macos")]
@@ -261,6 +270,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
             // 预先刷新 Store 覆盖配置，确保后续路径读取正确（日志/数据库等）
             app_store::refresh_app_config_dir_override(app.handle());
@@ -640,21 +650,28 @@ pub fn run() {
             });
             log::info!("✓ Deep-link URL handler registered");
 
-            // 创建动态托盘菜单
-            let menu = tray::create_tray_menu(app.handle(), &app_state)?;
-
             // 构建托盘
             let mut tray_builder = TrayIconBuilder::with_id("main")
-                .on_tray_icon_event(|_tray, event| match event {
-                    // 左键点击已通过 show_menu_on_left_click(true) 打开菜单，这里不再额外处理
-                    TrayIconEvent::Click { .. } => {}
-                    _ => log::debug!("unhandled event {event:?}"),
+                .on_tray_icon_event(|tray, event| {
+                    // 跟踪托盘图标位置（用于 positioner 插件定位窗口）
+                    tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+                    log::info!("[Tray] tray icon event: {event:?}");
+                    match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Down,
+                            ..
+                        } => {
+                            log::info!("[Tray] left mouse down -> show_tray_popup");
+                            if let Err(e) = tray::show_tray_popup(tray.app_handle()) {
+                                log::error!("显示托盘弹出窗口失败: {}", e);
+                            }
+                        }
+                        _ => log::debug!("unhandled tray icon event {event:?}"),
+                    }
                 })
-                .menu(&menu)
-                .on_menu_event(|app, event| {
-                    tray::handle_tray_menu_event(app, &event.id.0);
-                })
-                .show_menu_on_left_click(true);
+                // Don't show menu on left click - we handle it in on_tray_icon_event
+                .show_menu_on_left_click(false);
 
             // 使用平台对应的托盘图标（macOS 使用模板图标适配深浅色）
             #[cfg(target_os = "macos")]
@@ -939,6 +956,7 @@ pub fn run() {
             commands::import_from_deeplink,
             commands::import_from_deeplink_unified,
             update_tray_menu,
+            log_tray_popup_debug,
             // Environment variable management
             commands::check_env_conflicts,
             commands::delete_env_vars,
@@ -1103,6 +1121,8 @@ pub fn run() {
             commands::enter_lightweight_mode,
             commands::exit_lightweight_mode,
             commands::is_lightweight_mode,
+            // ZenMux commands
+            commands::zenmux::fetch_zenmux_subscription,
         ]);
 
     let app = builder
