@@ -1,3 +1,6 @@
+import React from "react";
+import type { AppId } from "@/lib/api";
+
 type AppType = "claude" | "codex" | "gemini";
 
 interface AppNavBarProps {

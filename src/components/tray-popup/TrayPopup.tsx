@@ -1,116 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { AppNavBar } from "./AppNavBar";
 import { ProviderList } from "./ProviderList";
 import { UsageDisplay } from "./UsageDisplay";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import { useQueryClient } from "@tanstack/react-query";
-import { providersApi, type AppId } from "@/lib/api";
-import { useProvidersQuery, type ProvidersQueryData } from "@/lib/query/queries";
+import type { AppId } from "@/lib/api";
 
 type AppType = "claude" | "codex" | "gemini";
 
 export function TrayPopup() {
   const [activeApp, setActiveApp] = useState<AppType>("claude");
-  const [switchingProviderId, setSwitchingProviderId] = useState<string | null>(
-    null,
-  );
-  const queryClient = useQueryClient();
-  const { data: providersData, isLoading } = useProvidersQuery(activeApp as AppId);
-
-  const providers = useMemo(
-    () => Object.values(providersData?.providers ?? {}).slice(0, 5),
-    [providersData?.providers],
-  );
-  const currentProviderId = providersData?.currentProviderId ?? "";
-  const currentProvider = providersData?.providers?.[currentProviderId] ?? null;
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    const subscribe = async () => {
-      try {
-        unlisten = await providersApi.onSwitched(async (event) => {
-          if (event.appType !== activeApp) {
-            return;
-          }
-
-          console.info("[TrayPopup][ProviderSwitchEvent]", event);
-          queryClient.setQueryData<ProvidersQueryData | undefined>(
-            ["providers", activeApp],
-            (old) => {
-              if (!old) {
-                return old;
-              }
-
-              return {
-                ...old,
-                currentProviderId: event.providerId,
-              };
-            },
-          );
-
-          await queryClient.refetchQueries({
-            queryKey: ["providers", activeApp],
-          });
-          await queryClient.refetchQueries({
-            queryKey: ["zenmuxSubscription"],
-          });
-        });
-      } catch (error) {
-        console.error("[TrayPopup] failed to subscribe provider switch event", error);
-      }
-    };
-
-    void subscribe();
-
-    return () => {
-      unlisten?.();
-    };
-  }, [activeApp, queryClient]);
-
-  const handleProviderSwitch = async (providerId: string) => {
-    if (providerId === currentProviderId || switchingProviderId) {
-      return;
-    }
-
-    console.info("[TrayPopup][ProviderSwitchRequest]", {
-      app: activeApp,
-      providerId,
-    });
-    setSwitchingProviderId(providerId);
-    try {
-      await providersApi.switch(providerId, activeApp);
-      queryClient.setQueryData<ProvidersQueryData | undefined>(
-        ["providers", activeApp],
-        (old) => {
-          if (!old) {
-            return old;
-          }
-
-          return {
-            ...old,
-            currentProviderId: providerId,
-          };
-        },
-      );
-      await queryClient.refetchQueries({ queryKey: ["providers", activeApp] });
-      await queryClient.refetchQueries({ queryKey: ["zenmuxSubscription"] });
-    } catch (error) {
-      console.error("[TrayPopup] failed to switch provider", error);
-    } finally {
-      setSwitchingProviderId(null);
-    }
-  };
 
   const handleOpenMainWindow = async () => {
     try {
-      console.info("[TrayPopup] open_main_window_clicked");
-      await invoke("show_main_window");
-      const popup = await WebviewWindow.getByLabel("tray_popup");
-      if (popup) {
-        await popup.hide();
-      }
+      const mainWindow = await getCurrentWindow();
+      await mainWindow.show();
+      await mainWindow.setFocus();
     } catch (e) {
       console.error("Failed to show main window:", e);
     }
@@ -121,19 +26,10 @@ export function TrayPopup() {
   };
 
   return (
-    <div className="flex h-[520px] w-[320px] flex-col overflow-hidden bg-[#2d2d2d] text-white shadow-2xl border border-white/10">
+    <div className="w-[320px] bg-[#2d2d2d] rounded-xl overflow-hidden text-white">
       <AppNavBar active={activeApp} onChange={setActiveApp} />
-      <div className="flex-1 overflow-y-auto">
-        <ProviderList
-          providers={providers}
-          currentProviderId={currentProviderId}
-          switchingProviderId={switchingProviderId}
-          isLoading={isLoading}
-          onProviderSwitch={handleProviderSwitch}
-          appId={activeApp as AppId}
-        />
-        <UsageDisplay provider={currentProvider} appId={activeApp as AppId} />
-      </div>
+      <ProviderList appType={activeApp as AppId} />
+      <UsageDisplay />
       <div className="flex p-2 gap-2">
         <button
           onClick={handleOpenMainWindow}
