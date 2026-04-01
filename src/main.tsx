@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { TrayPopup } from "./components/tray-popup/TrayPopup";
 import { UpdateProvider } from "./contexts/UpdateContext";
 import "./index.css";
 // 导入国际化配置
@@ -70,6 +71,20 @@ try {
   console.error("订阅 configLoadError 事件失败", e);
 }
 
+// Detect if running as tray popup route
+function isTrayPopupRoute(): boolean {
+  // Tauri passes the route as path segment in URL, e.g., /tray-popup or tray-popup.html
+  // Also check the full URL which may contain the path
+  const path = window.location.pathname;
+  const href = window.location.href;
+  return (
+    path === "/tray-popup" ||
+    path === "/tray-popup.html" ||
+    href.includes("/tray-popup") ||
+    href.endsWith("tray-popup")
+  );
+}
+
 async function bootstrap() {
   // 启动早期主动查询后端初始化错误，避免事件竞态
   try {
@@ -86,12 +101,14 @@ async function bootstrap() {
     console.error("拉取初始化错误失败", e);
   }
 
+  const isTrayPopup = isTrayPopupRoute();
+
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
           <UpdateProvider>
-            <App />
+            {isTrayPopup ? <TrayPopup /> : <App />}
             <Toaster />
           </UpdateProvider>
         </ThemeProvider>
