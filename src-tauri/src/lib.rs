@@ -884,16 +884,11 @@ pub fn run() {
             commands::set_rectifier_config,
             commands::get_optimizer_config,
             commands::set_optimizer_config,
-            commands::get_copilot_optimizer_config,
-            commands::set_copilot_optimizer_config,
             commands::get_log_config,
             commands::set_log_config,
             commands::restart_app,
-            commands::show_main_window,
-            commands::quit_app,
             commands::check_for_updates,
             commands::is_portable_mode,
-            commands::copy_text_to_clipboard,
             commands::get_claude_plugin_status,
             commands::read_claude_plugin_config,
             commands::apply_claude_plugin_config,
@@ -909,9 +904,6 @@ pub fn run() {
             // usage query
             commands::queryProviderUsage,
             commands::testUsageScript,
-            // subscription quota
-            commands::get_subscription_quota,
-            commands::get_coding_plan_quota,
             // New MCP via config.json (SSOT)
             commands::get_mcp_config,
             commands::upsert_mcp_server_in_config,
@@ -930,8 +922,6 @@ pub fn run() {
             commands::enable_prompt,
             commands::import_prompt_from_file,
             commands::get_current_prompt_file_content,
-            // model list fetch (OpenAI-compatible /v1/models)
-            commands::fetch_models_for_config,
             // ours: endpoint speed test + custom endpoint management
             commands::test_api_endpoints,
             commands::get_custom_endpoints,
@@ -1133,10 +1123,6 @@ pub fn run() {
             commands::is_lightweight_mode,
             // ZenMux commands
             commands::zenmux::fetch_zenmux_subscription,
-            commands::zenmux::fetch_zenmux_payg_balance,
-            // tray popup commands
-            commands::quit_app,
-            commands::show_main_window,
         ]);
 
     let app = builder
