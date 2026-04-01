@@ -2,7 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { TrayPopup } from "./components/tray-popup/TrayPopup";
-import { UpdateProvider } from "./contexts/UpdateContext";
 import "./index.css";
 // 导入国际化配置
 import i18n from "./i18n";
@@ -10,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
 import { queryClient } from "@/lib/query";
 import { Toaster } from "@/components/ui/sonner";
+import { UpdateProvider } from "./contexts/UpdateContext";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
@@ -71,18 +71,17 @@ try {
   console.error("订阅 configLoadError 事件失败", e);
 }
 
-// Detect if running as tray popup route
+// Detect if running as tray popup window
 function isTrayPopupRoute(): boolean {
-  // Tauri passes the route as path segment in URL, e.g., /tray-popup or tray-popup.html
-  // Also check the full URL which may contain the path
-  const path = window.location.pathname;
-  const href = window.location.href;
-  return (
-    path === "/tray-popup" ||
-    path === "/tray-popup.html" ||
-    href.includes("/tray-popup") ||
-    href.endsWith("tray-popup")
-  );
+  // Check for tray_popup=1 query parameter
+  // This is set by the Rust backend when creating the tray popup window
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("tray_popup") === "1") {
+    return true;
+  }
+  // Fallback: check for hash-based routing
+  const hash = window.location.hash;
+  return hash === "#tray-popup";
 }
 
 async function bootstrap() {
@@ -103,15 +102,82 @@ async function bootstrap() {
 
   const isTrayPopup = isTrayPopupRoute();
 
+  const reportTrayPopupDebug = async (label: string, snapshot: Record<string, unknown>) => {
+    if (!isTrayPopup) {
+      return;
+    }
+
+    try {
+      await invoke("log_tray_popup_debug", {
+        label,
+        snapshot,
+      });
+    } catch (error) {
+      console.error("[TrayPopup] failed to report debug snapshot", label, error);
+    }
+  };
+
+  if (isTrayPopup) {
+    console.info("[TrayPopup] bootstrap", {
+      href: window.location.href,
+      search: window.location.search,
+      hash: window.location.hash,
+      readyState: document.readyState,
+    });
+    void reportTrayPopupDebug("bootstrap", {
+      href: window.location.href,
+      search: window.location.search,
+      hash: window.location.hash,
+      readyState: document.readyState,
+    });
+  }
+
+  if (isTrayPopup) {
+    void reportTrayPopupDebug("before-inline-style", {
+      htmlBg: document.documentElement.style.backgroundColor,
+      htmlScheme: document.documentElement.style.colorScheme,
+      bodyBg: document.body.style.backgroundColor,
+      bodyScheme: document.body.style.colorScheme,
+      bodyColor: document.body.style.color,
+      rootExists: Boolean(document.getElementById("root")),
+    });
+    document.documentElement.style.backgroundColor = "#2d2d2d";
+    document.documentElement.style.colorScheme = "dark";
+    document.documentElement.style.height = "100%";
+    document.body.style.backgroundColor = "#2d2d2d";
+    document.body.style.colorScheme = "dark";
+    document.body.style.color = "#ffffff";
+    document.body.style.margin = "0";
+    document.body.style.height = "100%";
+    const root = document.getElementById("root");
+    if (root) {
+      root.style.backgroundColor = "#2d2d2d";
+      root.style.height = "100%";
+    }
+    void reportTrayPopupDebug("after-inline-style", {
+      htmlBg: document.documentElement.style.backgroundColor,
+      htmlScheme: document.documentElement.style.colorScheme,
+      bodyBg: document.body.style.backgroundColor,
+      bodyScheme: document.body.style.colorScheme,
+      bodyColor: document.body.style.color,
+      rootBg: root?.style.backgroundColor ?? null,
+      rootHeight: root?.style.height ?? null,
+    });
+  }
+
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
-          <UpdateProvider>
-            {isTrayPopup ? <TrayPopup /> : <App />}
-            <Toaster />
-          </UpdateProvider>
-        </ThemeProvider>
+        {isTrayPopup ? (
+          <TrayPopup />
+        ) : (
+          <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
+            <UpdateProvider>
+              <App />
+              <Toaster />
+            </UpdateProvider>
+          </ThemeProvider>
+        )}
       </QueryClientProvider>
     </React.StrictMode>,
   );

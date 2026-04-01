@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect } from "react";
 import type { AppId } from "@/lib/api";
 import { useProvidersQuery } from "@/lib/query/queries";
 import { providersApi } from "@/lib/api/providers";
@@ -27,6 +27,17 @@ export function ProviderList({ appType }: ProviderListProps) {
     queryKey: ["currentProvider", appType],
     queryFn: () => providersApi.getCurrent(appType),
   });
+
+  useEffect(() => {
+    console.info("[TrayPopup][ProviderList]", {
+      appType,
+      isLoading,
+      providerCount: providersData?.providers
+        ? Object.keys(providersData.providers).length
+        : 0,
+      currentProviderId,
+    });
+  }, [appType, currentProviderId, isLoading, providersData]);
 
   if (isLoading) {
     return (
