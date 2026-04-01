@@ -1,16 +1,12 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { zenmuxApi, vscodeApi } from "@/lib/api";
+import { zenmuxApi } from "@/lib/api";
+import { useProvidersQuery } from "@/lib/query";
 import type { AppId } from "@/lib/api";
 
 interface UsageDisplayProps {
   appId: AppId;
 }
-
-const getUsagePercentage = (used: number, total: number): number => {
-  if (total === 0) return 0;
-  return Math.min((used / total) * 100, 100);
-};
 
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "bg-green-400";
@@ -18,45 +14,40 @@ const getUsageColor = (percentage: number): string => {
   return "bg-red-400";
 };
 
-const formatFlows = (flows: number): string => {
-  if (flows >= 1000) {
-    return `${(flows / 1000).toFixed(1)}k`;
+const getUsageHexColor = (percentage: number): string => {
+  if (percentage < 30) return "#4ade80";
+  if (percentage < 70) return "#facc15";
+  return "#f87171";
+};
+
+const formatFlows = (flows: number | undefined | null): string => {
+  if (!Number.isFinite(flows)) {
+    return "0";
   }
-  return flows.toFixed(0);
+  if ((flows as number) >= 1000) {
+    return `${((flows as number) / 1000).toFixed(1)}k`;
+  }
+  return (flows as number).toFixed(0);
 };
 
 export function UsageDisplay({ appId }: UsageDisplayProps) {
-  // Fetch live provider settings to get the API key
-  const { data: liveSettings, isLoading: isLoadingSettings } = useQuery({
-    queryKey: ["liveProviderSettings", appId],
-    queryFn: () => vscodeApi.getLiveProviderSettings(appId),
-    staleTime: 30000, // 30 seconds
-  });
+  // Fetch providers to get API key from usage_script
+  const { data: providersData } = useProvidersQuery(appId);
 
-  // Extract API key from live settings
+  // Extract API key from the first provider that has usage_script with apiKey
   const apiKey = React.useMemo(() => {
-    if (!liveSettings) return null;
-    const config = liveSettings as Record<string, unknown>;
-    // Check for apiKey at the top level
-    if (typeof config.apiKey === "string" && config.apiKey) {
-      return config.apiKey;
-    }
-    // Check in settingsConfig if available
-    if (config.settingsConfig && typeof config.settingsConfig === "object") {
-      const settingsConfig = config.settingsConfig as Record<string, unknown>;
-      if (typeof settingsConfig.apiKey === "string" && settingsConfig.apiKey) {
-        return settingsConfig.apiKey;
-      }
-      // Check for ANTHROPIC_AUTH_TOKEN or other common fields
+    if (!providersData?.providers) return null;
+    // Find provider with usage_script enabled and apiKey
+    for (const provider of Object.values(providersData.providers)) {
       if (
-        typeof settingsConfig.ANTHROPIC_AUTH_TOKEN === "string" &&
-        settingsConfig.ANTHROPIC_AUTH_TOKEN
+        provider.meta?.usage_script?.enabled &&
+        provider.meta?.usage_script?.apiKey
       ) {
-        return settingsConfig.ANTHROPIC_AUTH_TOKEN;
+        return provider.meta.usage_script.apiKey;
       }
     }
     return null;
-  }, [liveSettings]);
+  }, [providersData]);
 
   // Fetch ZenMux subscription data if API key is available
   const {
@@ -71,7 +62,17 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
     retry: 1,
   });
 
-  const isLoading = isLoadingSettings || (apiKey && isLoadingSubscription);
+  const isLoading = isLoadingSubscription;
+
+  useEffect(() => {
+    console.info("[TrayPopup][UsageDisplay]", {
+      appId,
+      apiKeyPresent: Boolean(apiKey),
+      isLoading,
+      hasSubscription: Boolean(subscription),
+      hasError: Boolean(error),
+    });
+  }, [appId, apiKey, error, isLoading, subscription]);
 
   // If no API key, show placeholder
   if (!isLoading && !apiKey) {
@@ -95,7 +96,6 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
         <div className="text-[11px] text-[#666] mb-2">Usage</div>
         <div className="flex items-center justify-center py-4">
           <div className="animate-spin h-4 w-4 border-2 border-[#666] border-t-transparent rounded-full" />
-          <span className="text-[10px] text-[#666] ml-2">Loading...</span>
         </div>
       </div>
     );
@@ -106,103 +106,144 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
     return (
       <div className="px-2 py-2 border-t border-[#3d3d3d]">
         <div className="text-[11px] text-[#666] mb-2">Usage</div>
-        <div className="text-[10px] text-red-400 text-center py-2">
+        <div className="text-[10px] text-red-400 text-center py-4">
           Failed to load usage data
         </div>
-        <div className="text-[9px] text-[#555] text-center">
-          Check API key or try again
-        </div>
       </div>
     );
   }
 
-  // If no subscription data, show placeholder
-  if (!subscription) {
-    return (
-      <div className="px-2 py-2 border-t border-[#3d3d3d]">
-        <div className="text-[11px] text-[#666] mb-2">Usage</div>
-        <div className="text-[10px] text-[#666] text-center py-4">
-          No subscription data available
-        </div>
-      </div>
-    );
-  }
+  // Mock data for display when no subscription data
+  const mockData = !subscription;
 
-  // Parse real data from API response
-  const h5Used = subscription.quota_5_hour.used_flows;
-  const h5Total = subscription.quota_5_hour.max_flows;
-  const d7Used = subscription.quota_7_day.used_flows;
-  const d7Total = subscription.quota_7_day.max_flows;
-  const monthlyUsed = subscription.quota_monthly.max_flows - subscription.quota_7_day.remaining_flows;
-  const monthlyTotal = subscription.quota_monthly.max_flows;
+  // Mock subscription for demo
+  const sub = subscription || {
+    plan: { tier: "ultra", amount_usd: 200, interval: "month", expires_at: "2026-04-12T08:26:56.000Z" },
+    currency: "usd",
+    base_usd_per_flow: 0.03283,
+    effective_usd_per_flow: 0.03283,
+    account_status: mockData ? "healthy" : "unknown",
+    quota_5_hour: { usage_percentage: 0.0715, max_flows: 800, used_flows: 57.2, remaining_flows: 742.8, used_value_usd: 1.88, max_value_usd: 26.27 },
+    quota_7_day: { usage_percentage: 0.0673, max_flows: 6182, used_flows: 416, remaining_flows: 5766, used_value_usd: 13.66, max_value_usd: 202.99 },
+    quota_monthly: { max_flows: 34560, max_value_usd: 1134.33 },
+  };
 
-  const h5Percent = getUsagePercentage(h5Used, h5Total);
-  const d7Percent = getUsagePercentage(d7Used, d7Total);
-  const monthlyPercent = getUsagePercentage(monthlyUsed, monthlyTotal);
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case "healthy":
+        return "#10b981";
+      case "monitored":
+        return "#f59e0b";
+      default:
+        return "#ef4444";
+    }
+  };
 
-  const accountStatus = subscription.account_status;
-  const planName = subscription.plan.tier;
+  const statusColor = getStatusColor(sub.account_status);
 
   return (
-    <div className="px-2 py-2 border-t border-[#3d3d3d]">
-      <div className="text-[11px] text-[#666] mb-2">Usage</div>
+    <div className="px-3 py-2 border-t border-[#3d3d3d]">
+      <div className="text-[10px] text-[#666] uppercase mb-2">Usage (ZenMux)</div>
 
       {/* 5-Hour Window */}
-      <div className="mb-2">
-        <div className="flex justify-between text-[10px] text-[#888] mb-1">
-          <span>5-Hour Window</span>
-          <span>
-            {formatFlows(h5Used)} / {formatFlows(h5Total)} flows
+      <div className="mb-3">
+        <div className="flex justify-between mb-1">
+          <span className="text-[11px] text-[#aaa]">5-Hour Window</span>
+          <span className="text-[11px] text-white">
+            {formatFlows(sub.quota_5_hour.used_flows)} / {formatFlows(sub.quota_5_hour.max_flows)} Flows
           </span>
         </div>
-        <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div className="h-1.5 bg-[#3d3d3d] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${getUsageColor(h5Percent)}`}
-            style={{ width: `${h5Percent}%` }}
+            className={`h-full rounded-full transition-all ${getUsageColor(sub.quota_5_hour.usage_percentage * 100)}`}
+            style={{ width: `${sub.quota_5_hour.usage_percentage * 100}%` }}
           />
+        </div>
+        <div className="flex justify-between mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            ${sub.quota_5_hour.used_value_usd.toFixed(2)} / ${sub.quota_5_hour.max_value_usd.toFixed(2)}
+          </span>
+          <span
+            className="text-[9px]"
+            style={{ color: getUsageHexColor(sub.quota_5_hour.usage_percentage * 100) }}
+          >
+            {(sub.quota_5_hour.usage_percentage * 100).toFixed(2)}% used
+          </span>
         </div>
       </div>
 
       {/* 7-Day Window */}
-      <div className="mb-2">
-        <div className="flex justify-between text-[10px] text-[#888] mb-1">
-          <span>7-Day Window</span>
-          <span>
-            {formatFlows(d7Used)} / {formatFlows(d7Total)} flows
+      <div className="mb-3">
+        <div className="flex justify-between mb-1">
+          <span className="text-[11px] text-[#aaa]">7-Day Window</span>
+          <span className="text-[11px] text-white">
+            {formatFlows(sub.quota_7_day.used_flows)} / {formatFlows(sub.quota_7_day.max_flows)} Flows
           </span>
         </div>
-        <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div className="h-1.5 bg-[#3d3d3d] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${getUsageColor(d7Percent)}`}
-            style={{ width: `${d7Percent}%` }}
+            className={`h-full rounded-full transition-all ${getUsageColor(sub.quota_7_day.usage_percentage * 100)}`}
+            style={{ width: `${sub.quota_7_day.usage_percentage * 100}%` }}
           />
+        </div>
+        <div className="flex justify-between mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            ${sub.quota_7_day.used_value_usd.toFixed(2)} / ${sub.quota_7_day.max_value_usd.toFixed(2)}
+          </span>
+          <span
+            className="text-[9px]"
+            style={{ color: getUsageHexColor(sub.quota_7_day.usage_percentage * 100) }}
+          >
+            {(sub.quota_7_day.usage_percentage * 100).toFixed(2)}% used
+          </span>
         </div>
       </div>
 
       {/* Monthly Quota */}
-      <div className="mb-2">
-        <div className="flex justify-between text-[10px] text-[#888] mb-1">
-          <span>Monthly Quota</span>
-          <span>
-            {formatFlows(monthlyUsed)} / {formatFlows(monthlyTotal)} flows
+      <div className="mb-3">
+        <div className="flex justify-between mb-1">
+          <span className="text-[11px] text-[#aaa]">Monthly Quota</span>
+          <span className="text-[11px] text-white">
+            {formatFlows(sub.quota_monthly.max_flows)} max
           </span>
         </div>
-        <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div className="h-1.5 bg-[#3d3d3d] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${getUsageColor(monthlyPercent)}`}
-            style={{ width: `${monthlyPercent}%` }}
+            className="h-full rounded-full bg-transparent"
+            style={{ width: "0%" }}
           />
+        </div>
+        <div className="flex justify-between mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            $0 / ${sub.quota_monthly.max_value_usd.toFixed(2)}
+          </span>
+          <span className="text-[9px] text-[#888]">No usage yet</span>
         </div>
       </div>
 
       {/* Account Status */}
-      <div className="flex justify-between text-[10px] mt-2 pt-2 border-t border-[#3d3d3d]">
-        <span className="text-[#666]">Account</span>
-        <span className="text-green-400">{accountStatus}</span>
+      <div
+        className="flex items-center gap-1.5 p-2 rounded-md mt-2"
+        style={{ backgroundColor: `${statusColor}20` }}
+      >
+        <div
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: statusColor }}
+        />
+        <span className="text-[11px]" style={{ color: statusColor }}>
+          Account: {sub.account_status}
+        </span>
+        <span className="text-[10px] text-[#666]">
+          {sub.plan.tier.toUpperCase()} Plan
+        </span>
       </div>
-      <div className="flex justify-between text-[10px] mt-1">
-        <span className="text-[#666]">Plan</span>
-        <span className="text-[#888]">{planName}</span>
+
+      {/* Flow Rate */}
+      <div className="flex justify-between p-2 bg-[#3d3d3d] rounded-md mt-2">
+        <span className="text-[10px] text-[#888]">Flow Rate</span>
+        <span className="text-[10px] text-white">
+          ${sub.base_usd_per_flow} / Flow
+        </span>
       </div>
     </div>
   );

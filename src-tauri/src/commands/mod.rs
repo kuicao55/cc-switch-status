@@ -29,6 +29,7 @@ mod lightweight;
 mod usage;
 mod webdav_sync;
 mod workspace;
+pub mod zenmux;
 
 pub use auth::*;
 pub use coding_plan::*;
