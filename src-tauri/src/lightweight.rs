@@ -33,6 +33,7 @@ pub fn exit_lightweight_mode(app: &tauri::AppHandle) -> Result<(), String> {
     use tauri::WebviewWindowBuilder;
 
     if let Some(window) = app.get_webview_window("main") {
+        log::info!("[MainWindow] reusing existing main window");
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -58,6 +59,7 @@ pub fn exit_lightweight_mode(app: &tauri::AppHandle) -> Result<(), String> {
         .find(|w| w.label == "main")
         .ok_or("主窗口配置未找到")?;
 
+    log::info!("[MainWindow] creating main window from config");
     WebviewWindowBuilder::from_config(app, window_config)
         .map_err(|e| format!("加载主窗口配置失败: {e}"))?
         .visible(true)

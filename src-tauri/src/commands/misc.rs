@@ -34,6 +34,26 @@ pub async fn open_external(app: AppHandle, url: String) -> Result<bool, String> 
     Ok(true)
 }
 
+/// 显示主窗口
+#[tauri::command]
+pub fn show_main_window(app: AppHandle) -> Result<bool, String> {
+    log::info!("[MainWindow] show_main_window requested");
+    let result = crate::lightweight::exit_lightweight_mode(&app).map(|_| true);
+    match &result {
+        Ok(_) => log::info!("[MainWindow] show_main_window completed"),
+        Err(err) => log::error!("[MainWindow] show_main_window failed: {err}"),
+    }
+    result
+}
+
+/// 退出应用
+#[tauri::command]
+pub fn quit_app(app: AppHandle) -> bool {
+    log::info!("[MainWindow] quit_app requested");
+    app.exit(0);
+    true
+}
+
 /// 检查更新
 #[tauri::command]
 pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {

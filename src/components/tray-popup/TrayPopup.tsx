@@ -53,6 +53,9 @@ export function TrayPopup() {
           await queryClient.refetchQueries({
             queryKey: ["providers", activeApp],
           });
+          await queryClient.refetchQueries({
+            queryKey: ["zenmuxSubscription"],
+          });
         });
       } catch (error) {
         console.error("[TrayPopup] failed to subscribe provider switch event", error);
@@ -92,6 +95,7 @@ export function TrayPopup() {
         },
       );
       await queryClient.refetchQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.refetchQueries({ queryKey: ["zenmuxSubscription"] });
     } catch (error) {
       console.error("[TrayPopup] failed to switch provider", error);
     } finally {
@@ -101,6 +105,7 @@ export function TrayPopup() {
 
   const handleOpenMainWindow = async () => {
     try {
+      console.info("[TrayPopup] open_main_window_clicked");
       await invoke("show_main_window");
       const popup = await WebviewWindow.getByLabel("tray_popup");
       if (popup) {
