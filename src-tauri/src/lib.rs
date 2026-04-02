@@ -1134,6 +1134,7 @@ pub fn run() {
             commands::zenmux::fetch_zenmux_payg_balance,
             // tray popup commands
             commands::quit_app,
+            commands::show_main_window,
         ]);
 
     let app = builder

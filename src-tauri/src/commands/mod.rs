@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use tauri::Manager;
+
 mod auth;
 mod coding_plan;
 mod config;
@@ -64,4 +66,27 @@ pub use workspace::*;
 pub fn quit_app(app: tauri::AppHandle) {
     log::info!("Quit requested from tray popup");
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    log::info!("Showing main window from tray popup");
+
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = window.set_skip_taskbar(false);
+        }
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        #[cfg(target_os = "macos")]
+        {
+            use tauri::ActivationPolicy;
+            let _ = app.set_activation_policy(ActivationPolicy::Regular);
+        }
+        Ok(())
+    } else {
+        Err("Main window not found".to_string())
+    }
 }
