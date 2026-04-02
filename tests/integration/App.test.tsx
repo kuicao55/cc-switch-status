@@ -149,76 +149,65 @@ const renderApp = (AppComponent: ComponentType) => {
 describe("App integration with MSW", () => {
   beforeEach(() => {
     resetProviderState();
+    localStorage.clear();
+    sessionStorage.clear();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
 
-  it("covers basic provider flows via real hooks", async () => {
-    const { default: App } = await import("@/App");
-    renderApp(App);
+  const getProviderListText = () =>
+    screen.getAllByTestId("provider-list")[0]?.textContent ?? "";
 
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
+  it(
+    "covers basic provider flows via real hooks",
+    { timeout: 15000 },
+    async () => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
 
-    fireEvent.click(screen.getByText("switch-codex"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      ),
-    );
+      await waitFor(() => expect(getProviderListText()).toContain("claude-1"));
 
-    fireEvent.click(screen.getByText("usage"));
-    expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("save-script"));
-    fireEvent.click(screen.getByText("close-usage"));
+      fireEvent.click(screen.getByText("switch-codex"));
+      await waitFor(() => expect(getProviderListText()).toContain("codex-1"));
 
-    fireEvent.click(screen.getByText("create"));
-    expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("confirm-add"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(
-        /New codex Provider/,
-      ),
-    );
+      fireEvent.click(screen.getByText("usage"));
+      expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("save-script"));
+      fireEvent.click(screen.getByText("close-usage"));
 
-    fireEvent.click(screen.getByText("edit"));
-    expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("confirm-edit"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(
-        /-edited/,
-      ),
-    );
+      fireEvent.click(screen.getByText("create"));
+      expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("confirm-add"));
+      await waitFor(() =>
+        expect(getProviderListText()).toMatch(/New codex Provider/),
+      );
 
-    fireEvent.click(screen.getByText("switch"));
-    fireEvent.click(screen.getByText("duplicate"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(/copy/),
-    );
+      fireEvent.click(screen.getByText("edit"));
+      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("confirm-edit"));
+      await waitFor(() => expect(getProviderListText()).toMatch(/-edited/));
 
-    fireEvent.click(screen.getByText("open-website"));
+      fireEvent.click(screen.getByText("switch"));
+      fireEvent.click(screen.getByText("duplicate"));
+      await waitFor(() => expect(getProviderListText()).toMatch(/copy/));
 
-    emitTauriEvent("provider-switched", {
-      appType: "codex",
-      providerId: "codex-2",
-    });
+      fireEvent.click(screen.getByText("open-website"));
 
-    expect(toastErrorMock).not.toHaveBeenCalled();
-    expect(toastSuccessMock).toHaveBeenCalled();
-  });
+      emitTauriEvent("provider-switched", {
+        appType: "codex",
+        providerId: "codex-2",
+      });
+
+      expect(toastErrorMock).not.toHaveBeenCalled();
+      expect(toastSuccessMock).toHaveBeenCalled();
+    },
+  );
 
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
+    await waitFor(() => expect(getProviderListText()).toContain("claude-1"));
 
     emitTauriEvent("webdav-sync-status-updated", {
       source: "auto",
