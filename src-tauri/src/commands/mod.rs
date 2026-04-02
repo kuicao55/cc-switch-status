@@ -53,3 +53,9 @@ pub use lightweight::*;
 pub use usage::*;
 pub use webdav_sync::*;
 pub use workspace::*;
+
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    log::info!("Quit requested from tray popup");
+    app.exit(0);
+}
