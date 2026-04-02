@@ -35,8 +35,18 @@ export interface ZenmuxSubscription {
   };
 }
 
+export interface PaygBalance {
+  currency: string;
+  total_credits: number;
+  top_up_credits: number;
+  bonus_credits: number;
+}
+
 export const zenmuxApi = {
   getSubscription: async (apiKey: string): Promise<ZenmuxSubscription> => {
     return invoke("fetch_zenmux_subscription", { apiKey });
+  },
+  getPaygBalance: async (apiKey: string): Promise<PaygBalance> => {
+    return invoke("fetch_zenmux_payg_balance", { apiKey });
   },
 };
