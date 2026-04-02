@@ -887,6 +887,8 @@ pub fn run() {
             commands::get_log_config,
             commands::set_log_config,
             commands::restart_app,
+            commands::show_main_window,
+            commands::quit_app,
             commands::check_for_updates,
             commands::is_portable_mode,
             commands::get_claude_plugin_status,
