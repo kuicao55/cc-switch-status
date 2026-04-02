@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 use tauri::State;
+use tauri::Emitter;
 
 use crate::app_config::AppType;
 use crate::commands::copilot::CopilotAuthState;
@@ -341,7 +342,7 @@ pub fn update_providers_sort_order(
 
 use crate::provider::UniversalProvider;
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 #[derive(Clone, serde::Serialize)]
 pub struct UniversalProviderSyncedEvent {
