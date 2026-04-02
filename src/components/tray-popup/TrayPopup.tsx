@@ -1,15 +1,44 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AppNavBar } from "./AppNavBar";
 import { ProviderList } from "./ProviderList";
 import { UsageDisplay } from "./UsageDisplay";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppId } from "@/lib/api";
+import { useProvidersQuery } from "@/lib/query/queries";
+import { zenmuxApi } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 type AppType = "claude" | "codex" | "gemini";
 
 export function TrayPopup() {
   const [activeApp, setActiveApp] = useState<AppType>("claude");
+
+  // Fetch providers to get API key for usage data
+  const { data: providersData } = useProvidersQuery(activeApp as AppId);
+
+  // Extract API key from the first provider that has usage_script with apiKey
+  const apiKey = useMemo(() => {
+    if (!providersData?.providers) return null;
+    for (const provider of Object.values(providersData.providers)) {
+      if (
+        provider.meta?.usage_script?.enabled &&
+        provider.meta?.usage_script?.apiKey
+      ) {
+        return provider.meta.usage_script.apiKey;
+      }
+    }
+    return null;
+  }, [providersData]);
+
+  // Fetch ZenMux subscription data if API key is available
+  const { data: subscription } = useQuery({
+    queryKey: ["zenmuxSubscription", apiKey],
+    queryFn: () => zenmuxApi.getSubscription(apiKey!),
+    enabled: !!apiKey,
+    staleTime: 60000,
+    retry: 1,
+  });
 
   useEffect(() => {
     const root = document.getElementById("root");
@@ -154,7 +183,10 @@ export function TrayPopup() {
     <div className="flex h-[520px] w-[320px] flex-col overflow-hidden bg-[#2d2d2d] text-white shadow-2xl border border-white/10">
       <AppNavBar active={activeApp} onChange={setActiveApp} />
       <div className="flex-1 overflow-y-auto">
-        <ProviderList appType={activeApp as AppId} />
+        <ProviderList
+          appType={activeApp as AppId}
+          usagePercentage={subscription?.quota_5_hour?.usage_percentage}
+        />
         <UsageDisplay appId={activeApp as AppId} />
       </div>
       <div className="flex p-2 gap-2">
