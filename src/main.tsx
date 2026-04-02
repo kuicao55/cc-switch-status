@@ -102,45 +102,7 @@ async function bootstrap() {
 
   const isTrayPopup = isTrayPopupRoute();
 
-  const reportTrayPopupDebug = async (label: string, snapshot: Record<string, unknown>) => {
-    if (!isTrayPopup) {
-      return;
-    }
-
-    try {
-      await invoke("log_tray_popup_debug", {
-        label,
-        snapshot,
-      });
-    } catch (error) {
-      console.error("[TrayPopup] failed to report debug snapshot", label, error);
-    }
-  };
-
   if (isTrayPopup) {
-    console.info("[TrayPopup] bootstrap", {
-      href: window.location.href,
-      search: window.location.search,
-      hash: window.location.hash,
-      readyState: document.readyState,
-    });
-    void reportTrayPopupDebug("bootstrap", {
-      href: window.location.href,
-      search: window.location.search,
-      hash: window.location.hash,
-      readyState: document.readyState,
-    });
-  }
-
-  if (isTrayPopup) {
-    void reportTrayPopupDebug("before-inline-style", {
-      htmlBg: document.documentElement.style.backgroundColor,
-      htmlScheme: document.documentElement.style.colorScheme,
-      bodyBg: document.body.style.backgroundColor,
-      bodyScheme: document.body.style.colorScheme,
-      bodyColor: document.body.style.color,
-      rootExists: Boolean(document.getElementById("root")),
-    });
     document.documentElement.style.backgroundColor = "#2d2d2d";
     document.documentElement.style.colorScheme = "dark";
     document.documentElement.style.height = "100%";
@@ -154,15 +116,6 @@ async function bootstrap() {
       root.style.backgroundColor = "#2d2d2d";
       root.style.height = "100%";
     }
-    void reportTrayPopupDebug("after-inline-style", {
-      htmlBg: document.documentElement.style.backgroundColor,
-      htmlScheme: document.documentElement.style.colorScheme,
-      bodyBg: document.body.style.backgroundColor,
-      bodyScheme: document.body.style.colorScheme,
-      bodyColor: document.body.style.color,
-      rootBg: root?.style.backgroundColor ?? null,
-      rootHeight: root?.style.height ?? null,
-    });
   }
 
   ReactDOM.createRoot(document.getElementById("root")!).render(

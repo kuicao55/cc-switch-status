@@ -34,20 +34,24 @@ pub async fn open_external(app: AppHandle, url: String) -> Result<bool, String> 
     Ok(true)
 }
 
+/// 显示主窗口
 #[tauri::command]
-pub async fn copy_text_to_clipboard(text: String) -> Result<bool, String> {
-    // Use spawn_blocking to avoid blocking the async runtime
-    // Clipboard access can block on some platforms and may have thread/loop constraints
-    tokio::task::spawn_blocking(move || {
-        let mut clipboard =
-            arboard::Clipboard::new().map_err(|e| format!("访问系统剪贴板失败: {e}"))?;
-        clipboard
-            .set_text(text)
-            .map_err(|e| format!("写入系统剪贴板失败: {e}"))?;
-        Ok(true)
-    })
-    .await
-    .map_err(|e| format!("剪贴板任务执行失败: {e}"))?
+pub fn show_main_window(app: AppHandle) -> Result<bool, String> {
+    log::info!("[MainWindow] show_main_window requested");
+    let result = crate::lightweight::exit_lightweight_mode(&app).map(|_| true);
+    match &result {
+        Ok(_) => log::info!("[MainWindow] show_main_window completed"),
+        Err(err) => log::error!("[MainWindow] show_main_window failed: {err}"),
+    }
+    result
+}
+
+/// 退出应用
+#[tauri::command]
+pub fn quit_app(app: AppHandle) -> bool {
+    log::info!("[MainWindow] quit_app requested");
+    app.exit(0);
+    true
 }
 
 /// 检查更新
@@ -1116,21 +1120,21 @@ exec bash --norc --noprofile
         let pref_args = default_terminals
             .iter()
             .find(|(name, _)| *name == pref.as_str())
-            .map(|(_, args)| args.to_vec())
+            .map(|(_, args)| args.iter().map(|s| *s).collect::<Vec<&str>>())
             .unwrap_or_else(|| vec!["-e"]); // Default args for unknown terminals
 
         let mut list = vec![(pref.as_str(), pref_args)];
         // Add remaining terminals as fallbacks
         for (name, args) in &default_terminals {
             if *name != pref.as_str() {
-                list.push((*name, args.to_vec()));
+                list.push((*name, args.iter().map(|s| *s).collect()));
             }
         }
         list
     } else {
         default_terminals
             .iter()
-            .map(|(name, args)| (*name, args.to_vec()))
+            .map(|(name, args)| (*name, args.iter().map(|s| *s).collect()))
             .collect()
     };
 

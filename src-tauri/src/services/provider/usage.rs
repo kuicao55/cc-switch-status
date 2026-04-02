@@ -115,6 +115,11 @@ pub async fn query_usage(
     app_type: AppType,
     provider_id: &str,
 ) -> Result<UsageResult, AppError> {
+    log::info!(
+        "[UsageQuery] request received: app={}, provider={}",
+        app_type.as_str(),
+        provider_id
+    );
     let (script_code, timeout, api_key, base_url, access_token, user_id, template_type) = {
         let providers = state.db.get_all_providers(app_type.as_str())?;
         let provider = providers.get(provider_id).ok_or_else(|| {
@@ -135,8 +140,13 @@ pub async fn query_usage(
                     "未配置用量查询脚本",
                     "Usage script is not configured",
                 )
-            })?;
+        })?;
         if !usage_script.enabled {
+            log::info!(
+                "[UsageQuery] usage script disabled: app={}, provider={}",
+                app_type.as_str(),
+                provider_id
+            );
             return Err(AppError::localized(
                 "provider.usage.disabled",
                 "用量查询未启用",
@@ -159,6 +169,14 @@ pub async fn query_usage(
             .or_else(|| extract_base_url_from_provider(provider))
             .unwrap_or_default();
 
+        log::info!(
+            "[UsageQuery] credentials resolved: app={}, provider={}, has_api_key={}, has_base_url={}",
+            app_type.as_str(),
+            provider_id,
+            !api_key.is_empty(),
+            !base_url.is_empty()
+        );
+
         (
             usage_script.code.clone(),
             usage_script.timeout.unwrap_or(10),
@@ -180,6 +198,15 @@ pub async fn query_usage(
         template_type.as_deref(),
     )
     .await
+    .map(|result| {
+        log::info!(
+            "[UsageQuery] completed: app={}, provider={}, success={}",
+            app_type.as_str(),
+            provider_id,
+            result.success
+        );
+        result
+    })
 }
 
 /// Test usage script (using temporary script content, not saved)
