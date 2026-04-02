@@ -1,13 +1,7 @@
-import { useEffect } from "react";
 import type { AppId } from "@/lib/api";
 import { useProvidersQuery } from "@/lib/query/queries";
 import { providersApi } from "@/lib/api/providers";
 import { useQuery } from "@tanstack/react-query";
-
-// Mock usage percentage - will be replaced with real data
-const getMockUsagePercentage = (): number => {
-  return Math.floor(Math.random() * 100);
-};
 
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "text-green-400";
@@ -17,27 +11,25 @@ const getUsageColor = (percentage: number): string => {
 
 interface ProviderListProps {
   appType: AppId;
+  usagePercentage?: number | null;
 }
 
-export function ProviderList({ appType }: ProviderListProps) {
+export function ProviderList({ appType, usagePercentage }: ProviderListProps) {
   const { data: providersData, isLoading } = useProvidersQuery(appType);
 
-  // Get current provider
   const { data: currentProviderId } = useQuery({
     queryKey: ["currentProvider", appType],
     queryFn: () => providersApi.getCurrent(appType),
   });
 
-  useEffect(() => {
-    console.info("[TrayPopup][ProviderList]", {
-      appType,
-      isLoading,
-      providerCount: providersData?.providers
-        ? Object.keys(providersData.providers).length
-        : 0,
-      currentProviderId,
-    });
-  }, [appType, currentProviderId, isLoading, providersData]);
+  const handleProviderClick = async (providerId: string) => {
+    if (providerId === currentProviderId) return;
+    try {
+      await providersApi.switch(providerId, appType);
+    } catch (e) {
+      console.error("[TrayPopup] Failed to switch provider:", e);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -48,7 +40,7 @@ export function ProviderList({ appType }: ProviderListProps) {
   }
 
   const providers = providersData?.providers
-    ? Object.values(providersData.providers).slice(0, 5)
+    ? Object.values(providersData.providers)
     : [];
 
   if (providers.length === 0) {
@@ -64,14 +56,15 @@ export function ProviderList({ appType }: ProviderListProps) {
       <div className="text-[11px] text-[#666] mb-1">Providers</div>
       <div className="space-y-1">
         {providers.map((provider) => {
-          const usagePercentage = getMockUsagePercentage();
           const isCurrent = provider.id === currentProviderId;
+          const displayPercentage = usagePercentage != null ? Math.round(usagePercentage * 100) : null;
 
           return (
             <div
               key={provider.id}
-              className={`flex items-center justify-between py-1 px-2 rounded ${
-                isCurrent ? "bg-[#3d3d3d]" : ""
+              onClick={() => handleProviderClick(provider.id)}
+              className={`flex items-center justify-between py-1 px-2 rounded cursor-pointer transition-colors ${
+                isCurrent ? "bg-[#3d3d3d]" : "hover:bg-[#2a2a2a]"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -87,11 +80,13 @@ export function ProviderList({ appType }: ProviderListProps) {
                   <span className="text-[10px] text-[#4a9eff]">Active</span>
                 )}
               </div>
-              <span
-                className={`text-[11px] ${getUsageColor(usagePercentage)}`}
-              >
-                {usagePercentage}%
-              </span>
+              {displayPercentage !== null && (
+                <span
+                  className={`text-[11px] ${getUsageColor(displayPercentage)}`}
+                >
+                  {displayPercentage}%
+                </span>
+              )}
             </div>
           );
         })}
