@@ -1,7 +1,7 @@
 import type { AppId } from "@/lib/api";
 import { useProvidersQuery } from "@/lib/query/queries";
 import { providersApi } from "@/lib/api/providers";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "text-green-400";
@@ -12,9 +12,11 @@ const getUsageColor = (percentage: number): string => {
 interface ProviderListProps {
   appType: AppId;
   usagePercentage?: number | null;
+  onProviderSwitched?: () => void;
 }
 
-export function ProviderList({ appType, usagePercentage }: ProviderListProps) {
+export function ProviderList({ appType, usagePercentage, onProviderSwitched }: ProviderListProps) {
+  const queryClient = useQueryClient();
   const { data: providersData, isLoading } = useProvidersQuery(appType);
 
   const { data: currentProviderId } = useQuery({
@@ -26,6 +28,9 @@ export function ProviderList({ appType, usagePercentage }: ProviderListProps) {
     if (providerId === currentProviderId) return;
     try {
       await providersApi.switch(providerId, appType);
+      queryClient.invalidateQueries({ queryKey: ["providers", appType] });
+      queryClient.invalidateQueries({ queryKey: ["currentProvider", appType] });
+      onProviderSwitched?.();
     } catch (e) {
       console.error("[TrayPopup] Failed to switch provider:", e);
     }
