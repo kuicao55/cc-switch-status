@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AppId } from "@/lib/api";
 import { useProvidersQuery } from "@/lib/query/queries";
 import { zenmuxApi } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type AppType = "claude" | "codex" | "gemini";
 
@@ -39,6 +39,12 @@ export function TrayPopup() {
     staleTime: 60000,
     retry: 1,
   });
+
+  const queryClient = useQueryClient();
+
+  const handleProviderSwitched = () => {
+    queryClient.invalidateQueries({ queryKey: ["zenmuxSubscription"] });
+  };
 
   useEffect(() => {
     const root = document.getElementById("root");
@@ -158,13 +164,7 @@ export function TrayPopup() {
 
   const handleOpenMainWindow = async () => {
     try {
-      // Get the main window by its label "main"
-      const mainWindow = await WebviewWindow.getByLabel("main");
-      if (mainWindow) {
-        await mainWindow.show();
-        await mainWindow.unminimize();
-        await mainWindow.setFocus();
-      }
+      await invoke("show_main_window");
       // Hide the popup
       const popup = await WebviewWindow.getByLabel("tray_popup");
       if (popup) {
@@ -186,6 +186,7 @@ export function TrayPopup() {
         <ProviderList
           appType={activeApp as AppId}
           usagePercentage={subscription?.quota_5_hour?.usage_percentage}
+          onProviderSwitched={handleProviderSwitched}
         />
         <UsageDisplay appId={activeApp as AppId} />
       </div>
