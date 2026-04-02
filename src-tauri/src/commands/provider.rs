@@ -99,12 +99,34 @@ pub fn switch_provider_test_hook(
 
 #[tauri::command]
 pub fn switch_provider(
+    app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
     app: String,
     id: String,
 ) -> Result<SwitchResult, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    switch_provider_internal(&state, app_type, &id).map_err(|e| e.to_string())
+    log::info!(
+        "[ProviderSwitch] request received: app={}, provider={}",
+        app_type.as_str(),
+        id
+    );
+    let result =
+        switch_provider_internal(&state, app_type.clone(), &id).map_err(|e| e.to_string())?;
+
+    let event_data = serde_json::json!({
+        "appType": app_type.as_str(),
+        "proxyEnabled": false,
+        "autoFailoverEnabled": false,
+        "providerId": id,
+    });
+    let _ = app_handle.emit("provider-switched", event_data);
+    log::info!(
+        "[ProviderSwitch] provider-switched emitted: app={}, provider={}",
+        app_type.as_str(),
+        id
+    );
+
+    Ok(result)
 }
 
 fn import_default_config_internal(state: &AppState, app_type: AppType) -> Result<bool, AppError> {
