@@ -1,142 +1,107 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppNavBar } from "./AppNavBar";
 import { ProviderList } from "./ProviderList";
 import { UsageDisplay } from "./UsageDisplay";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppId } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { providersApi, type AppId } from "@/lib/api";
+import { useProvidersQuery, type ProvidersQueryData } from "@/lib/query/queries";
 
 type AppType = "claude" | "codex" | "gemini";
 
 export function TrayPopup() {
   const [activeApp, setActiveApp] = useState<AppType>("claude");
+  const [switchingProviderId, setSwitchingProviderId] = useState<string | null>(
+    null,
+  );
+  const queryClient = useQueryClient();
+  const { data: providersData, isLoading } = useProvidersQuery(activeApp as AppId);
+
+  const providers = useMemo(
+    () => Object.values(providersData?.providers ?? {}).slice(0, 5),
+    [providersData?.providers],
+  );
+  const currentProviderId = providersData?.currentProviderId ?? "";
+  const currentProvider = providersData?.providers?.[currentProviderId] ?? null;
 
   useEffect(() => {
-    const root = document.getElementById("root");
+    let unlisten: (() => void) | undefined;
 
-    const logSnapshot = (label: string) => {
-      const html = document.documentElement;
-      const body = document.body;
-      const rootEl = document.getElementById("root");
-      const computedBody = window.getComputedStyle(body);
-      const computedRoot = rootEl ? window.getComputedStyle(rootEl) : null;
+    const subscribe = async () => {
+      try {
+        unlisten = await providersApi.onSwitched(async (event) => {
+          if (event.appType !== activeApp) {
+            return;
+          }
 
-      console.info("[TrayPopup]", label, {
-        htmlClass: html.className,
-        htmlBg: html.style.backgroundColor,
-        htmlScheme: html.style.colorScheme,
-        bodyClass: body.className,
-        bodyBg: body.style.backgroundColor,
-        bodyScheme: body.style.colorScheme,
-        rootBg: rootEl?.style.backgroundColor ?? null,
-        rootHeight: rootEl?.style.height ?? null,
-        computedBodyBg: computedBody.backgroundColor,
-        computedRootBg: computedRoot?.backgroundColor ?? null,
-      });
+          console.info("[TrayPopup][ProviderSwitchEvent]", event);
+          queryClient.setQueryData<ProvidersQueryData | undefined>(
+            ["providers", activeApp],
+            (old) => {
+              if (!old) {
+                return old;
+              }
+
+              return {
+                ...old,
+                currentProviderId: event.providerId,
+              };
+            },
+          );
+
+          await queryClient.refetchQueries({
+            queryKey: ["providers", activeApp],
+          });
+        });
+      } catch (error) {
+        console.error("[TrayPopup] failed to subscribe provider switch event", error);
+      }
     };
 
-    logSnapshot("mounted");
-    void invoke("log_tray_popup_debug", {
-      label: "component-mounted",
-      snapshot: {
-        activeApp,
-        rootExists: Boolean(root),
-      },
-    });
-
-    const raf1 = window.requestAnimationFrame(() => logSnapshot("raf1"));
-    const timer1 = window.setTimeout(() => logSnapshot("t250"), 250);
-    const timer2 = window.setTimeout(() => logSnapshot("t1000"), 1000);
-
-    const observer = new MutationObserver((mutations) => {
-      console.info(
-        "[TrayPopup] mutation",
-        mutations.map((mutation) => ({
-          target: (mutation.target as Element).tagName,
-          attributeName: mutation.attributeName,
-          className: (mutation.target as Element).className,
-          style: (mutation.target as HTMLElement).getAttribute("style"),
-        })),
-      );
-      logSnapshot("after-mutation");
-      void invoke("log_tray_popup_debug", {
-        label: "mutation",
-        snapshot: mutations.map((mutation) => ({
-          target: (mutation.target as Element).tagName,
-          attributeName: mutation.attributeName,
-          className: (mutation.target as Element).className,
-          style: (mutation.target as HTMLElement).getAttribute("style"),
-        })),
-      });
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    });
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    });
-    if (root) {
-      observer.observe(root, {
-        attributes: true,
-        attributeFilter: ["class", "style"],
-      });
-    }
-
-    const onError = (event: ErrorEvent) => {
-      console.error("[TrayPopup] window error", event.message, event.error);
-      void invoke("log_tray_popup_debug", {
-        label: "window-error",
-        snapshot: {
-          message: event.message,
-          error: String(event.error ?? ""),
-        },
-      });
-    };
-    const onRejection = (event: PromiseRejectionEvent) => {
-      console.error("[TrayPopup] unhandledrejection", event.reason);
-      void invoke("log_tray_popup_debug", {
-        label: "unhandledrejection",
-        snapshot: {
-          reason: String(event.reason ?? ""),
-        },
-      });
-    };
-
-    window.addEventListener("error", onError);
-    window.addEventListener("unhandledrejection", onRejection);
+    void subscribe();
 
     return () => {
-      window.cancelAnimationFrame(raf1);
-      window.clearTimeout(timer1);
-      window.clearTimeout(timer2);
-      observer.disconnect();
-      window.removeEventListener("error", onError);
-      window.removeEventListener("unhandledrejection", onRejection);
+      unlisten?.();
     };
-  }, []);
+  }, [activeApp, queryClient]);
 
-  useEffect(() => {
-    void invoke("log_tray_popup_debug", {
-      label: "activeApp-change",
-      snapshot: {
-        activeApp,
-      },
+  const handleProviderSwitch = async (providerId: string) => {
+    if (providerId === currentProviderId || switchingProviderId) {
+      return;
+    }
+
+    console.info("[TrayPopup][ProviderSwitchRequest]", {
+      app: activeApp,
+      providerId,
     });
-  }, [activeApp]);
+    setSwitchingProviderId(providerId);
+    try {
+      await providersApi.switch(providerId, activeApp);
+      queryClient.setQueryData<ProvidersQueryData | undefined>(
+        ["providers", activeApp],
+        (old) => {
+          if (!old) {
+            return old;
+          }
+
+          return {
+            ...old,
+            currentProviderId: providerId,
+          };
+        },
+      );
+      await queryClient.refetchQueries({ queryKey: ["providers", activeApp] });
+    } catch (error) {
+      console.error("[TrayPopup] failed to switch provider", error);
+    } finally {
+      setSwitchingProviderId(null);
+    }
+  };
 
   const handleOpenMainWindow = async () => {
     try {
-      // Get the main window by its label "main"
-      const mainWindow = await WebviewWindow.getByLabel("main");
-      if (mainWindow) {
-        await mainWindow.show();
-        await mainWindow.unminimize();
-        await mainWindow.setFocus();
-      }
-      // Hide the popup
+      await invoke("show_main_window");
       const popup = await WebviewWindow.getByLabel("tray_popup");
       if (popup) {
         await popup.hide();
@@ -154,8 +119,14 @@ export function TrayPopup() {
     <div className="flex h-[520px] w-[320px] flex-col overflow-hidden bg-[#2d2d2d] text-white shadow-2xl border border-white/10">
       <AppNavBar active={activeApp} onChange={setActiveApp} />
       <div className="flex-1 overflow-y-auto">
-        <ProviderList appType={activeApp as AppId} />
-        <UsageDisplay appId={activeApp as AppId} />
+        <ProviderList
+          providers={providers}
+          currentProviderId={currentProviderId}
+          switchingProviderId={switchingProviderId}
+          isLoading={isLoading}
+          onProviderSwitch={handleProviderSwitch}
+        />
+        <UsageDisplay provider={currentProvider} />
       </div>
       <div className="flex p-2 gap-2">
         <button
