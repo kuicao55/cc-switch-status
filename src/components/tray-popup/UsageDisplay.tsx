@@ -30,6 +30,26 @@ const formatFlows = (flows: number | undefined | null): string => {
   return (flows as number).toFixed(0);
 };
 
+const formatResetTime = (resetsAt: string | null | undefined): string => {
+  if (!resetsAt) return "N/A";
+  const resetDate = new Date(resetsAt);
+  const now = new Date();
+  const diffMs = resetDate.getTime() - now.getTime();
+  const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+
+  if (diffHours < 0) return "Expired";
+  if (diffHours < 1) return "Less than 1h";
+  if (diffHours < 24) return `${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ${diffHours % 24}h`;
+};
+
+const formatDateTime = (isoString: string | null | undefined): string => {
+  if (!isoString) return "N/A";
+  const date = new Date(isoString);
+  return date.toLocaleString();
+};
+
 export function UsageDisplay({ appId }: UsageDisplayProps) {
   // Fetch providers to get API key from usage_script
   const { data: providersData } = useProvidersQuery(appId);
@@ -59,6 +79,18 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
     queryFn: () => zenmuxApi.getSubscription(apiKey!),
     enabled: !!apiKey,
     staleTime: 60000, // 1 minute
+    retry: 1,
+  });
+
+  // Fetch ZenMux PAYG balance data if API key is available
+  const {
+    data: paygBalance,
+    isLoading: isLoadingPayg,
+  } = useQuery({
+    queryKey: ["zenmuxPaygBalance", apiKey],
+    queryFn: () => zenmuxApi.getPaygBalance(apiKey!),
+    enabled: !!apiKey,
+    staleTime: 60000,
     retry: 1,
   });
 
@@ -123,8 +155,8 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
     base_usd_per_flow: 0.03283,
     effective_usd_per_flow: 0.03283,
     account_status: mockData ? "healthy" : "unknown",
-    quota_5_hour: { usage_percentage: 0.0715, max_flows: 800, used_flows: 57.2, remaining_flows: 742.8, used_value_usd: 1.88, max_value_usd: 26.27 },
-    quota_7_day: { usage_percentage: 0.0673, max_flows: 6182, used_flows: 416, remaining_flows: 5766, used_value_usd: 13.66, max_value_usd: 202.99 },
+    quota_5_hour: { usage_percentage: 0.0715, max_flows: 800, used_flows: 57.2, remaining_flows: 742.8, used_value_usd: 1.88, max_value_usd: 26.27, resets_at: "2026-04-02T12:00:00.000Z" },
+    quota_7_day: { usage_percentage: 0.0673, max_flows: 6182, used_flows: 416, remaining_flows: 5766, used_value_usd: 13.66, max_value_usd: 202.99, resets_at: "2026-04-09T00:00:00.000Z" },
     quota_monthly: { max_flows: 34560, max_value_usd: 1134.33 },
   };
 
@@ -170,6 +202,12 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
             {(sub.quota_5_hour.usage_percentage * 100).toFixed(2)}% used
           </span>
         </div>
+        {/* NEW: Reset time */}
+        <div className="flex justify-end mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            Resets in {formatResetTime(sub.quota_5_hour.resets_at)}
+          </span>
+        </div>
       </div>
 
       {/* 7-Day Window */}
@@ -197,27 +235,35 @@ export function UsageDisplay({ appId }: UsageDisplayProps) {
             {(sub.quota_7_day.usage_percentage * 100).toFixed(2)}% used
           </span>
         </div>
+        {/* NEW: Reset time */}
+        <div className="flex justify-end mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            Resets {formatDateTime(sub.quota_7_day.resets_at)}
+          </span>
+        </div>
       </div>
 
-      {/* Monthly Quota */}
+      {/* PAYG Balance */}
       <div className="mb-3">
         <div className="flex justify-between mb-1">
-          <span className="text-[11px] text-[#aaa]">Monthly Quota</span>
+          <span className="text-[11px] text-[#aaa]">PAYG Balance</span>
           <span className="text-[11px] text-white">
-            {formatFlows(sub.quota_monthly.max_flows)} max
+            ${paygBalance?.total_credits.toFixed(2) ?? "--"}
           </span>
         </div>
         <div className="h-1.5 bg-[#3d3d3d] rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-transparent"
-            style={{ width: "0%" }}
+            className="h-full rounded-full bg-[#4a9eff]"
+            style={{ width: "100%" }}
           />
         </div>
         <div className="flex justify-between mt-0.5">
           <span className="text-[9px] text-[#666]">
-            $0 / ${sub.quota_monthly.max_value_usd.toFixed(2)}
+            Top-up: ${paygBalance?.top_up_credits.toFixed(2) ?? "--"}
           </span>
-          <span className="text-[9px] text-[#888]">No usage yet</span>
+          <span className="text-[9px] text-[#666]">
+            Bonus: ${paygBalance?.bonus_credits.toFixed(2) ?? "--"}
+          </span>
         </div>
       </div>
 
