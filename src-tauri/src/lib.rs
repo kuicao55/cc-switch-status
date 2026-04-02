@@ -1123,6 +1123,8 @@ pub fn run() {
             commands::is_lightweight_mode,
             // ZenMux commands
             commands::zenmux::fetch_zenmux_subscription,
+            // tray popup commands
+            commands::quit_app,
         ]);
 
     let app = builder
