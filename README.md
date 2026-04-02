@@ -36,7 +36,7 @@ sudo ditto "src-tauri/target/release/bundle/macos/CC Switch.app" "/Applications/
 
 ### 正式 Release 安装
 
-从 [Releases](https://github.com/kuicao55/cc-switch-status/releases) 页面下载 `CC-Switch-v3.12.3-macOS.dmg`。
+从 [Releases](https://github.com/kuicao55/cc-switch-status/releases) 页面下载最新的 macOS 安装包。
 
 安装步骤：
 
@@ -46,5 +46,5 @@ sudo ditto "src-tauri/target/release/bundle/macos/CC Switch.app" "/Applications/
 
 可选下载：
 
-- `CC-Switch-v3.12.3-macOS.zip`
+- `.zip` 归档包
 - 如果你已经把仓库拉到本地，也可以直接使用上面的构建步骤安装到 `/Applications`
