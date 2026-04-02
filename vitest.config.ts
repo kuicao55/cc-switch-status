@@ -10,9 +10,16 @@ export default defineConfig({
     },
   },
   test: {
+    include: ["tests/**/*.test.{ts,tsx}", "tests/**/*.spec.{ts,tsx}"],
     environment: "jsdom",
     setupFiles: ["./tests/setupGlobals.ts", "./tests/setupTests.ts"],
     globals: true,
+    exclude: [
+      "**/.worktrees/**",
+      "**/dist/**",
+      "**/target/**",
+      "**/node_modules/**",
+    ],
     coverage: {
       reporter: ["text", "lcov"],
     },
