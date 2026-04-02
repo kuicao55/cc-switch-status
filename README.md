@@ -34,8 +34,17 @@ pnpm tauri build
 sudo ditto "src-tauri/target/release/bundle/macos/CC Switch.app" "/Applications/CC Switch.app"
 ```
 
-### 从 GitHub Release 安装
+### 正式 Release 安装
 
-这个仓库已经配置了 Release workflow。只要推送一个 `v*` 标签，就会自动生成 GitHub Release，并附带 macOS 安装包。
+从 [Releases](https://github.com/kuicao55/cc-switch-status/releases) 页面下载 `CC-Switch-v3.12.3-macOS.dmg`。
 
-用户只需要到 Releases 页面下载对应的 `.dmg` 或 `.zip` 即可。
+安装步骤：
+
+1. 打开下载的 `.dmg`。
+2. 将 `CC Switch.app` 拖入 `/Applications`。
+3. 如果系统提示替换已有应用，先退出旧版再确认覆盖。
+
+可选下载：
+
+- `CC-Switch-v3.12.3-macOS.zip`
+- 如果你已经把仓库拉到本地，也可以直接使用上面的构建步骤安装到 `/Applications`
