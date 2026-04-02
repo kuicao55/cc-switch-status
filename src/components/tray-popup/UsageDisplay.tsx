@@ -37,6 +37,45 @@ const formatCredits = (credits: number | undefined | null): string => {
   return (credits as number).toFixed(2);
 };
 
+const formatResetTime = (resetsAt: string | null | undefined): string => {
+  if (!resetsAt) {
+    return "N/A";
+  }
+
+  const resetDate = new Date(resetsAt);
+  if (Number.isNaN(resetDate.getTime())) {
+    return "N/A";
+  }
+
+  const diffMs = resetDate.getTime() - Date.now();
+  const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+  if (diffHours < 0) {
+    return "Expired";
+  }
+  if (diffHours < 1) {
+    return "Less than 1h";
+  }
+  if (diffHours < 24) {
+    return `${diffHours}h`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ${diffHours % 24}h`;
+};
+
+const formatResetDate = (resetsAt: string | null | undefined): string => {
+  if (!resetsAt) {
+    return "N/A";
+  }
+
+  const resetDate = new Date(resetsAt);
+  if (Number.isNaN(resetDate.getTime())) {
+    return "N/A";
+  }
+
+  return resetDate.toLocaleString();
+};
+
 export function UsageDisplay({ provider }: UsageDisplayProps) {
   const { data: subscription, isLoading, isFetching, error, apiKey } =
     useZenmuxSubscription(provider, { logLabel: "ZenMuxRequest" });
@@ -132,6 +171,11 @@ export function UsageDisplay({ provider }: UsageDisplayProps) {
             {percent.toFixed(2)}% used
           </span>
         </div>
+        <div className="flex justify-end mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            Resets in {formatResetTime(subscription.quota_5_hour.resets_at)}
+          </span>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -164,8 +208,13 @@ export function UsageDisplay({ provider }: UsageDisplayProps) {
                 subscription.quota_7_day.usage_percentage * 100,
               ),
             }}
-          >
+            >
             {(subscription.quota_7_day.usage_percentage * 100).toFixed(2)}% used
+          </span>
+        </div>
+        <div className="flex justify-end mt-0.5">
+          <span className="text-[9px] text-[#666]">
+            Resets on {formatResetDate(subscription.quota_7_day.resets_at)}
           </span>
         </div>
       </div>
