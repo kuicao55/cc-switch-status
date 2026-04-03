@@ -136,6 +136,30 @@ pub struct PaygInfo {
     pub bonus: f64,
 }
 
+/// 时间窗口用量
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowUsage {
+    pub total: f64,
+    pub used: f64,
+    pub remaining: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "usedValue")]
+    pub used_value: Option<f64>,  // ZenMux特有（美元价值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "maxValue")]
+    pub max_value: Option<f64>,   // ZenMux特有
+}
+
+/// PAYG信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaygInfo {
+    pub total: f64,
+    #[serde(rename = "topUp")]
+    pub top_up: f64,
+    #[serde(rename = "bonus")]
+    pub bonus: f64,
+}
+
 /// 用量数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageData {
