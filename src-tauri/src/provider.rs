@@ -108,6 +108,30 @@ pub struct UsageScript {
     pub auto_query_interval: Option<u64>,
 }
 
+/// 时间窗口用量
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowUsage {
+    pub total: f64,
+    pub used: f64,
+    pub remaining: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "usedValue")]
+    pub used_value: Option<f64>,  // ZenMux特有（美元价值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "maxValue")]
+    pub max_value: Option<f64>,   // ZenMux特有
+}
+
+/// PAYG信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaygInfo {
+    pub total: f64,
+    #[serde(rename = "topUp")]
+    pub top_up: f64,
+    #[serde(rename = "bonus")]
+    pub bonus: f64,
+}
+
 /// 用量数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageData {
@@ -130,6 +154,30 @@ pub struct UsageData {
     pub remaining: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "window5h")]
+    pub window_5h: Option<WindowUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "window7d")]
+    pub window_7d: Option<WindowUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "resetsAt")]
+    pub resets_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "resetsAtWeekly")]
+    pub resets_at_weekly: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "accountStatus")]
+    pub account_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "planTier")]
+    pub plan_tier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "paygBalance")]
+    pub payg_balance: Option<PaygInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "flowRate")]
+    pub flow_rate: Option<f64>,
 }
 
 /// 用量查询结果（支持多套餐）
