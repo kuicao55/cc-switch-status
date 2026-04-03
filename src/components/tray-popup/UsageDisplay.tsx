@@ -3,10 +3,6 @@ import { useProviderSubscription } from "./useProviderSubscription";
 import type { AppId } from "@/lib/api/types";
 import type { WindowUsage, PaygInfo } from "@/types";
 
-interface UsageDisplayProps {
-  provider: Provider | null;
-}
-
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "bg-green-400";
   if (percentage < 70) return "bg-yellow-400";
@@ -34,31 +30,6 @@ const formatCredits = (credits: number | undefined | null): string => {
     return "--";
   }
   return (credits as number).toFixed(2);
-};
-
-const formatResetTime = (resetsAt: string | null | undefined): string => {
-  if (!resetsAt) return "N/A";
-
-  const resetDate = new Date(resetsAt);
-  if (Number.isNaN(resetDate.getTime())) return "N/A";
-
-  const diffMs = resetDate.getTime() - Date.now();
-  const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
-  if (diffHours < 0) return "Expired";
-  if (diffHours < 1) return "Less than 1h";
-  if (diffHours < 24) return `${diffHours}h`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ${diffHours % 24}h`;
-};
-
-const formatResetDate = (resetsAt: string | null | undefined): string => {
-  if (!resetsAt) return "N/A";
-
-  const resetDate = new Date(resetsAt);
-  if (Number.isNaN(resetDate.getTime())) return "N/A";
-
-  return resetDate.toLocaleString();
 };
 
 const formatResetTimeFromISO = (isoString: string | null | undefined): string => {
