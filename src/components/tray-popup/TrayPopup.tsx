@@ -130,6 +130,7 @@ export function TrayPopup() {
           switchingProviderId={switchingProviderId}
           isLoading={isLoading}
           onProviderSwitch={handleProviderSwitch}
+          appId={activeApp as AppId}
         />
         <UsageDisplay provider={currentProvider} />
       </div>

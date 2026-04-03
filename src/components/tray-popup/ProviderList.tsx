@@ -1,5 +1,6 @@
 import type { Provider } from "@/types";
-import { useZenmuxSubscription } from "./useZenmuxSubscription";
+import type { AppId } from "@/lib/api/types";
+import { useProviderSubscription } from "./useProviderSubscription";
 
 interface ProviderListProps {
   providers: Provider[];
@@ -7,6 +8,7 @@ interface ProviderListProps {
   switchingProviderId: string | null;
   isLoading: boolean;
   onProviderSwitch: (providerId: string) => Promise<void>;
+  appId: AppId;
 }
 
 const getUsageColor = (percentage: number): string => {
@@ -17,11 +19,11 @@ const getUsageColor = (percentage: number): string => {
 
 interface ProviderUsageBadgeProps {
   provider: Provider;
+  appId: AppId;
 }
 
-function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps) {
-  const { isFetching, usagePercentage, apiKey } =
-    useZenmuxSubscription(provider);
+function ProviderUsageBadge({ provider, appId }: ProviderUsageBadgeProps) {
+  const { isFetching, usagePercentage, apiKey } = useProviderSubscription(provider, appId);
 
   if (!apiKey) {
     return <span className="text-[11px] text-[#666]">--</span>;
@@ -36,8 +38,8 @@ function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps) {
   }
 
   return (
-    <span className={`text-[11px] ${getUsageColor(usagePercentage * 100)}`}>
-      {(usagePercentage * 100).toFixed(1)}%
+    <span className={`text-[11px] ${getUsageColor(usagePercentage)}`}>
+      {usagePercentage.toFixed(1)}%
     </span>
   );
 }
@@ -47,6 +49,7 @@ interface ProviderRowProps {
   isCurrent: boolean;
   isSwitching: boolean;
   onProviderSwitch: (providerId: string) => Promise<void>;
+  appId: AppId;
 }
 
 function ProviderRow({
@@ -54,6 +57,7 @@ function ProviderRow({
   isCurrent,
   isSwitching,
   onProviderSwitch,
+  appId,
 }: ProviderRowProps) {
   const handleClick = async () => {
     if (isCurrent || isSwitching) {
@@ -90,7 +94,7 @@ function ProviderRow({
           <span className="text-[10px] text-[#888]">Switching...</span>
         )}
       </div>
-      <ProviderUsageBadge provider={provider} />
+      <ProviderUsageBadge provider={provider} appId={appId} />
     </button>
   );
 }
@@ -101,6 +105,7 @@ export function ProviderList({
   switchingProviderId,
   isLoading,
   onProviderSwitch,
+  appId,
 }: ProviderListProps) {
   if (isLoading) {
     return (
@@ -129,6 +134,7 @@ export function ProviderList({
             isCurrent={provider.id === currentProviderId}
             isSwitching={switchingProviderId === provider.id}
             onProviderSwitch={onProviderSwitch}
+            appId={appId}
           />
         ))}
       </div>
