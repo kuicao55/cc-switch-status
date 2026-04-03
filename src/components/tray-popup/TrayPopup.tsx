@@ -132,7 +132,7 @@ export function TrayPopup() {
           onProviderSwitch={handleProviderSwitch}
           appId={activeApp as AppId}
         />
-        <UsageDisplay provider={currentProvider} />
+        <UsageDisplay provider={currentProvider} appId={activeApp as AppId} />
       </div>
       <div className="flex p-2 gap-2">
         <button
