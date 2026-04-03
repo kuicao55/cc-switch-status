@@ -111,6 +111,59 @@ pub async fn execute_usage_script(
     // 6. 发送 HTTP 请求
     let response_data = send_http_request(&request, timeout_secs).await?;
 
+    // 6.5. 检查脚本中是否有 secondaryRequest 配置
+    // 先在 JS 上下文中解析 secondaryRequest（只解析配置，不执行）
+    let secondary_request_config: Option<SecondaryRequestConfig> = {
+        let runtime_check = Runtime::new().map_err(|e| {
+            AppError::localized(
+                "usage_script.secondary_runtime_create_failed",
+                format!("创建 JS 运行时失败: {e}"),
+                format!("Failed to create JS runtime: {e}"),
+            )
+        })?;
+        let context_check = Context::full(&runtime_check).map_err(|e| {
+            AppError::localized(
+                "usage_script.secondary_context_create_failed",
+                format!("创建 JS 上下文失败: {e}"),
+                format!("Failed to create JS context: {e}"),
+            )
+        })?;
+
+        context_check.with(|ctx| -> Result<Option<SecondaryRequestConfig>, AppError> {
+            let config_obj: rquickjs::Object = ctx.eval(script_with_vars.clone())
+                .map_err(|_| AppError::Config("解析脚本配置失败".to_string()))?;
+            let secondary_req: Result<rquickjs::Object, _> = config_obj.get("secondaryRequest");
+            match secondary_req {
+                Ok(sec_req) => {
+                    let sec_req_json: String = ctx.json_stringify(sec_req)
+                        .map_err(|_| AppError::Config("序列化 secondaryRequest 失败".to_string()))?
+                        .ok_or_else(|| AppError::Config("secondaryRequest 为空".to_string()))?
+                        .get()
+                        .map_err(|_| AppError::Config("获取 secondaryRequest 字符串失败".to_string()))?;
+                    let sec_config: SecondaryRequestConfig = serde_json::from_str(&sec_req_json)
+                        .map_err(|e| AppError::Config(format!("secondaryRequest 格式错误: {e}")))?;
+                    Ok(Some(sec_config))
+                }
+                Err(_) => Ok(None),
+            }
+        }).map_err(|e| AppError::Config(format!("检查 secondaryRequest 失败: {e}")))?
+    };
+
+    // 6.6. 如果有 secondaryRequest，执行它
+    let secondary_response_data: Option<String> = if let Some(sec_config) = secondary_request_config {
+        validate_request_url(&sec_config.url, base_url, is_custom_template)?;
+        let sec_request: RequestConfig = RequestConfig {
+            url: sec_config.url,
+            method: sec_config.method,
+            headers: sec_config.headers,
+            body: sec_config.body,
+        };
+        let sec_response = send_http_request(&sec_request, timeout_secs).await?;
+        Some(sec_response)
+    } else {
+        None
+    };
+
     // 7. 在独立作用域中执行 extractor（确保 Runtime/Context 在函数结束前释放）
     let result: Value = {
         let runtime = Runtime::new().map_err(|e| {
@@ -157,8 +210,22 @@ pub async fn execute_usage_script(
                     )
                 })?;
 
-            // 调用 extractor(response)
-            let result_js: rquickjs::Value = extractor.call((response_js,)).map_err(|e| {
+            // 如果有 secondaryResponse，也转换为 JS 值
+            let secondary_response_js: rquickjs::Value = match secondary_response_data {
+                Some(sec_data) => {
+                    ctx.json_parse(sec_data.as_str()).map_err(|e| {
+                        AppError::localized(
+                            "usage_script.secondary_response_parse_failed",
+                            format!("解析 secondary 响应 JSON 失败: {e}"),
+                            format!("Failed to parse secondary response JSON: {e}"),
+                        )
+                    })?
+                }
+                None => rquickjs::Value::new_null(ctx.clone()),
+            };
+
+            // 调用 extractor(response, secondaryResponse)
+            let result_js: rquickjs::Value = extractor.call((response_js, secondary_response_js)).map_err(|e| {
                 AppError::localized(
                     "usage_script.extractor_exec_failed",
                     format!("执行 extractor 失败: {e}"),
@@ -212,6 +279,17 @@ pub async fn execute_usage_script(
 /// 请求配置结构
 #[derive(Debug, serde::Deserialize)]
 struct RequestConfig {
+    url: String,
+    method: String,
+    #[serde(default)]
+    headers: HashMap<String, String>,
+    #[serde(default)]
+    body: Option<String>,
+}
+
+/// 辅助请求配置（用于需要额外数据的场景，如获取 PAYG Balance）
+#[derive(Debug, serde::Deserialize)]
+struct SecondaryRequestConfig {
     url: String,
     method: String,
     #[serde(default)]
@@ -406,6 +484,7 @@ fn build_script_with_vars(
     access_token: Option<&str>,
     user_id: Option<&str>,
 ) -> String {
+    // 先替换模板变量
     let mut replaced = script_code
         .replace("{{apiKey}}", api_key)
         .replace("{{baseUrl}}", base_url);
@@ -417,7 +496,17 @@ fn build_script_with_vars(
         replaced = replaced.replace("{{userId}}", uid);
     }
 
-    replaced
+    // 注入 __apiKey__ 和 __baseUrl__ 作为 JavaScript 变量，
+    // 供 extractor 函数在需要时使用（用于发起额外的 HTTP 请求）
+    // 使用双下划线前缀避免与用户脚本中的变量名冲突
+    let var_injection = format!(
+        "var __apiKey__ = \"{}\"; var __baseUrl__ = \"{}\"; ",
+        api_key.replace('"', "\\\""),
+        base_url.replace('"', "\\\"")
+    );
+
+    // 在脚本开头插入变量声明
+    format!("{}{}", var_injection, replaced)
 }
 
 /// 验证 base_url 的基本安全性

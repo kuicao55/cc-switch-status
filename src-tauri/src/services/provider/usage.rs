@@ -31,6 +31,9 @@ pub(crate) async fn execute_and_format_usage_result(
     .await
     {
         Ok(data) => {
+            // Debug: log the raw JSON data
+            let data_str = serde_json::to_string_pretty(&data).unwrap_or_default();
+            log::info!("[execute_and_format_usage_result] pretty data: {}", data_str);
             let usage_list: Vec<UsageData> = if data.is_array() {
                 serde_json::from_value(data).map_err(|e| {
                     AppError::localized(
