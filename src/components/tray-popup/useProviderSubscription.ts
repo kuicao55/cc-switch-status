@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useQuery, useMemo } from "@tanstack/react-query";
 import { usageApi } from "@/lib/api/usage";
 import type { UsageData } from "@/types";
 import type { AppId } from "@/lib/api/types";
