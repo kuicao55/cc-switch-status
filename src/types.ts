@@ -73,16 +73,48 @@ export interface UsageScript {
   };
 }
 
+// 时间窗口用量
+export interface WindowUsage {
+  total: number;
+  used: number;
+  remaining: number;
+  usedValue?: number;  // ZenMux特有（美元价值）
+  maxValue?: number;   // ZenMux特有
+}
+
+// PAYG信息
+export interface PaygInfo {
+  total: number;
+  topUp: number;
+  bonus: number;
+}
+
 // 单个套餐用量数据
 export interface UsageData {
-  planName?: string; // 套餐名称（可选）
-  extra?: string; // 扩展字段，可自由补充需要展示的文本（可选）
-  isValid?: boolean; // 套餐是否有效（可选）
-  invalidMessage?: string; // 失效原因说明（可选，当 isValid 为 false 时显示）
-  total?: number; // 总额度（可选）
-  used?: number; // 已用额度（可选）
-  remaining?: number; // 剩余额度（可选）
-  unit?: string; // 单位（可选）
+  planName?: string;
+  extra?: string;
+  isValid?: boolean;
+  invalidMessage?: string;
+  total?: number;
+  used?: number;
+  remaining?: number;
+  unit?: string;
+
+  // 时间窗口
+  window5h?: WindowUsage;
+  window7d?: WindowUsage;
+  resetsAt?: string | null;       // 5-hour window 重置时间 (ISO string)
+  resetsAtWeekly?: string | null; // 7-day window 重置时间
+
+  // 账户信息
+  accountStatus?: string;         // healthy/monitored/suspended
+  planTier?: string;             // free/pro/max/ultra
+
+  // PAYG
+  paygBalance?: PaygInfo;
+
+  // ZenMux 特有
+  flowRate?: number;              // USD per flow
 }
 
 // 用量查询结果（支持多套餐）
