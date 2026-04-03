@@ -180,6 +180,7 @@ pub async fn queryProviderUsage(
     #[allow(non_snake_case)] providerId: String, // 使用 camelCase 匹配前端
     app: String,
 ) -> Result<crate::provider::UsageResult, String> {
+    println!("[queryProviderUsage] called with providerId={}, app={}", providerId, app);
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
 
     // 从数据库读取供应商信息，检查特殊模板类型
@@ -226,6 +227,15 @@ pub async fn queryProviderUsage(
                 is_valid: Some(true),
                 invalid_message: None,
                 extra: Some(format!("Reset: {}", usage.quota_reset_date)),
+                // 新增字段（Copilot 暂不支持）
+                window_5h: None,
+                window_7d: None,
+                resets_at: None,
+                resets_at_weekly: None,
+                account_status: None,
+                plan_tier: None,
+                payg_balance: None,
+                flow_rate: None,
             }]),
             error: None,
         });
