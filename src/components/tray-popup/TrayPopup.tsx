@@ -69,6 +69,26 @@ export function TrayPopup() {
     };
   }, [activeApp, queryClient]);
 
+  // 点击弹窗外部区域关闭弹窗
+  useEffect(() => {
+    const handleBlur = () => {
+      // 延迟 100ms 关闭，避免点击弹窗内部元素时误触发
+      setTimeout(async () => {
+        try {
+          const popup = await WebviewWindow.getByLabel("tray_popup");
+          if (popup && (await popup.isVisible())) {
+            await popup.hide();
+          }
+        } catch (error) {
+          console.error("[TrayPopup] Failed to hide popup on blur:", error);
+        }
+      }, 100);
+    };
+
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
+
   const handleProviderSwitch = async (providerId: string) => {
     if (providerId === currentProviderId || switchingProviderId) {
       return;
