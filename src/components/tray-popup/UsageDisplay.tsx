@@ -1,7 +1,9 @@
+import React from "react";
 import type { Provider } from "@/types";
 import { useProviderSubscription } from "./useProviderSubscription";
 import type { AppId } from "@/lib/api/types";
 import type { WindowUsage, PaygInfo } from "@/types";
+import { RefreshCw } from "lucide-react";
 
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "bg-green-400";
@@ -13,6 +15,14 @@ const getUsageHexColor = (percentage: number): string => {
   if (percentage < 30) return "#4ade80";
   if (percentage < 70) return "#facc15";
   return "#f87171";
+};
+
+const formatRelativeTime = (timestamp: number, now: number): string => {
+  const diff = Math.floor((now - timestamp) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 };
 
 const formatFlows = (flows: number | undefined | null): string => {
@@ -149,8 +159,18 @@ export function UsageDisplay({
   provider: Provider | null;
   appId: AppId;
 }) {
-  const { data, isLoading, isFetching, error, apiKey, usagePercentage } =
+  const { data, isLoading, isFetching, error, apiKey, usagePercentage, lastQueriedAt } =
     useProviderSubscription(provider, appId);
+  const [now, setNow] = React.useState(Date.now());
+
+  // 每 30 秒更新当前时间
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const showRefreshing = isFetching;
+  const showLastRefreshed = !showRefreshing && lastQueriedAt;
 
   if (!provider) {
     return (
@@ -203,8 +223,15 @@ export function UsageDisplay({
 
   return (
     <div className="px-3 py-2 border-t border-[#3d3d3d]">
-      <div className="text-[10px] text-[#666] uppercase mb-2">
-        Usage {data.planName ? `(${data.planName})` : ""}
+      <div className="flex items-center gap-1.5 text-[10px] text-[#666] uppercase mb-2">
+        <span>Usage {data.planName ? `(${data.planName})` : ""}</span>
+        {showRefreshing ? (
+          <RefreshCw size={10} className="animate-spin" />
+        ) : showLastRefreshed ? (
+          <span className="text-[9px] normal-case font-normal text-[#555]">
+            {formatRelativeTime(lastQueriedAt, now)}
+          </span>
+        ) : null}
       </div>
 
       {/* 5-Hour Window */}
