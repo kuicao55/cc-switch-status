@@ -27,7 +27,7 @@
 
 - Modify: `src/components/tray-popup/TrayPopup.tsx`
 
-- [ ] **Step 1: 添加 window.blur 事件监听**
+- [x] **Step 1: 添加 window.blur 事件监听**
 
 在 `TrayPopup` 组件中添加 `useEffect` 监听窗口失焦事件：
 
@@ -49,21 +49,21 @@ useEffect(() => {
 }, []);
 ```
 
-- [ ] **Step 2: 验证 WebviewWindow 导入存在**
+- [x] **Step 2: 验证 WebviewWindow 导入存在**
 
 确认文件顶部已有 `WebviewWindow` 导入：
 ```typescript
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 ```
 
-- [ ] **Step 3: 手动测试**
+- [x] **Step 3: 手动测试**
 
 1. 构建并运行应用
 2. 点击托盘图标打开弹窗
 3. 点击桌面或其他应用 → 弹窗应关闭
 4. 点击弹窗内按钮 → 弹窗不应关闭
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/tray-popup/TrayPopup.tsx
@@ -78,7 +78,7 @@ git commit -m "feat(tray-popup): add click-outside-to-dismiss functionality"
 
 - Modify: `src/components/tray-popup/TrayPopup.tsx`
 
-- [ ] **Step 1: 添加组件挂载时的刷新逻辑**
+- [x] **Step 1: 添加组件挂载时的刷新逻辑**
 
 在 `TrayPopup` 组件中添加 `useEffect` 在挂载时刷新数据：
 
@@ -96,13 +96,13 @@ useEffect(() => {
 }, []); // 空依赖数组，仅在挂载时执行
 ```
 
-- [ ] **Step 2: 手动测试**
+- [x] **Step 2: 手动测试**
 
 1. 在主界面修改 provider 配置
 2. 打开弹窗 → 应显示最新数据
 3. 检查控制台日志 `[TrayPopup] Refreshing data on popup open`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/components/tray-popup/TrayPopup.tsx
@@ -117,7 +117,7 @@ git commit -m "feat(tray-popup): refresh provider and usage data on popup open"
 
 - Modify: `src/components/tray-popup/useProviderSubscription.ts`
 
-- [ ] **Step 1: 添加 autoQueryInterval 参数读取**
+- [x] **Step 1: 添加 autoQueryInterval 参数读取**
 
 修改 `useProviderSubscription` 函数，从 provider 配置中读取 `autoQueryInterval`：
 
@@ -145,7 +145,7 @@ export function useProviderSubscription(
 }
 ```
 
-- [ ] **Step 2: 添加 refetchInterval 配置**
+- [x] **Step 2: 添加 refetchInterval 配置**
 
 修改 `useQuery` 配置，添加 `refetchInterval` 和 `refetchIntervalInBackground`：
 
@@ -178,14 +178,14 @@ const query = useQuery({
 });
 ```
 
-- [ ] **Step 3: 手动测试**
+- [x] **Step 3: 手动测试**
 
 1. 在 provider 配置中设置 `autoQueryInterval = 1`
 2. 打开弹窗
 3. 等待 1 分钟 → 数据应自动刷新
 4. 设置 `autoQueryInterval = 0` → 不应自动刷新
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/tray-popup/useProviderSubscription.ts
