@@ -37,9 +37,11 @@ pub fn add_provider(
     state: State<'_, AppState>,
     app: String,
     provider: Provider,
+    #[allow(non_snake_case)] addToLive: Option<bool>,
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    ProviderService::add(state.inner(), app_type, provider).map_err(|e| e.to_string())
+    ProviderService::add(state.inner(), app_type, provider, addToLive.unwrap_or(true))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -47,9 +49,11 @@ pub fn update_provider(
     state: State<'_, AppState>,
     app: String,
     provider: Provider,
+    #[allow(non_snake_case)] originalId: Option<String>,
 ) -> Result<bool, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-    ProviderService::update(state.inner(), app_type, provider).map_err(|e| e.to_string())
+    ProviderService::update(state.inner(), app_type, originalId.as_deref(), provider)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

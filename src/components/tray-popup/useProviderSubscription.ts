@@ -15,16 +15,37 @@ interface UseProviderSubscriptionResult {
   error: Error | null;
   apiKey: string | null;
   usagePercentage: number | null;
+  lastQueriedAt: number | null;
 }
 
 export function useProviderSubscription(
-  provider: { id: string; meta?: { usage_script?: { apiKey?: string; enabled?: boolean } } } | null,
+  provider: {
+    id: string;
+    meta?: {
+      usage_script?: {
+        apiKey?: string;
+        enabled?: boolean;
+        autoQueryInterval?: number;
+      };
+    };
+  } | null,
   appId: AppId,
   options?: UseProviderSubscriptionOptions,
 ): UseProviderSubscriptionResult {
   const usageScript = provider?.meta?.usage_script;
   const apiKey = usageScript?.apiKey?.trim() || null;
+  const autoQueryInterval = usageScript?.autoQueryInterval || 0;
   const enabled = Boolean(apiKey && usageScript?.enabled && provider?.id);
+
+  // 调试日志
+  console.info("[TrayPopup][useProviderSubscription] config", {
+    providerId: provider?.id,
+    hasUsageScript: !!usageScript,
+    enabled: usageScript?.enabled,
+    apiKey: apiKey ? "***" : null,
+    autoQueryInterval,
+    // auto-refresh 由 Rust 定时器 + usage-refresh-tick 事件驱动，不由 refetchInterval 驱动
+  });
 
   const query = useQuery({
     queryKey: ["providerSubscription", provider?.id ?? "", apiKey ?? ""],
@@ -45,6 +66,8 @@ export function useProviderSubscription(
     staleTime: 60 * 1000,
     retry: 1,
     refetchOnWindowFocus: false,
+    // auto-refresh 由 Rust 后台定时器 + TrayPopup 中的 usage-refresh-tick 事件驱动，
+    // 不依赖 JS refetchInterval（隐藏的 webview 定时器可能不运行）
   });
 
   // 计算 usage percentage：优先使用 5h，其次 7d，最后 fallback 到 total/used
@@ -69,5 +92,6 @@ export function useProviderSubscription(
     error: query.error as Error | null,
     apiKey,
     usagePercentage,
+    lastQueriedAt: query.dataUpdatedAt || null,
   };
 }

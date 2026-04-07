@@ -4,6 +4,7 @@ import { ProviderList } from "./ProviderList";
 import { UsageDisplay } from "./UsageDisplay";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { providersApi, type AppId } from "@/lib/api";
 import { useProvidersQuery, type ProvidersQueryData } from "@/lib/query/queries";
@@ -16,7 +17,7 @@ export function TrayPopup() {
     null,
   );
   const queryClient = useQueryClient();
-  const { data: providersData, isLoading } = useProvidersQuery(activeApp as AppId);
+  const { data: providersData, isLoading, isFetching: isProvidersFetching } = useProvidersQuery(activeApp as AppId);
 
   const providers = useMemo(
     () => Object.values(providersData?.providers ?? {}).slice(0, 5),
@@ -24,6 +25,31 @@ export function TrayPopup() {
   );
   const currentProviderId = providersData?.currentProviderId ?? "";
   const currentProvider = providersData?.providers?.[currentProviderId] ?? null;
+
+  // 每次弹窗打开时刷新数据
+  useEffect(() => {
+    const refreshOnOpen = async () => {
+      console.info("[TrayPopup] Refreshing data on popup open");
+      // 使用 invalidateQueries 强制失效缓存，确保重新获取数据
+      await queryClient.invalidateQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.invalidateQueries({ queryKey: ["providerSubscription"] });
+    };
+
+    refreshOnOpen();
+  }, []);
+
+  // 监听 Rust 后端发送的 tray-popup-shown 事件
+  useEffect(() => {
+    const unlistenPromise = listen("tray-popup-shown", async () => {
+      console.info("[TrayPopup] Received tray-popup-shown event, refreshing data");
+      await queryClient.invalidateQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.invalidateQueries({ queryKey: ["providerSubscription"] });
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, [activeApp, queryClient]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -129,6 +155,7 @@ export function TrayPopup() {
           currentProviderId={currentProviderId}
           switchingProviderId={switchingProviderId}
           isLoading={isLoading}
+          isRefreshing={isProvidersFetching}
           onProviderSwitch={handleProviderSwitch}
           appId={activeApp as AppId}
         />
