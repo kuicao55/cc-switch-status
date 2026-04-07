@@ -18,12 +18,22 @@ interface UseProviderSubscriptionResult {
 }
 
 export function useProviderSubscription(
-  provider: { id: string; meta?: { usage_script?: { apiKey?: string; enabled?: boolean } } } | null,
+  provider: {
+    id: string;
+    meta?: {
+      usage_script?: {
+        apiKey?: string;
+        enabled?: boolean;
+        autoQueryInterval?: number;
+      };
+    };
+  } | null,
   appId: AppId,
   options?: UseProviderSubscriptionOptions,
 ): UseProviderSubscriptionResult {
   const usageScript = provider?.meta?.usage_script;
   const apiKey = usageScript?.apiKey?.trim() || null;
+  const autoQueryInterval = usageScript?.autoQueryInterval || 0;
   const enabled = Boolean(apiKey && usageScript?.enabled && provider?.id);
 
   const query = useQuery({
@@ -45,6 +55,11 @@ export function useProviderSubscription(
     staleTime: 60 * 1000,
     retry: 1,
     refetchOnWindowFocus: false,
+    refetchInterval:
+      autoQueryInterval > 0
+        ? Math.max(autoQueryInterval, 1) * 60 * 1000
+        : false,
+    refetchIntervalInBackground: true,
   });
 
   // 计算 usage percentage：优先使用 5h，其次 7d，最后 fallback 到 total/used
