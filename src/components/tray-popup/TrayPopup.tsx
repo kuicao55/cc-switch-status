@@ -25,6 +25,17 @@ export function TrayPopup() {
   const currentProviderId = providersData?.currentProviderId ?? "";
   const currentProvider = providersData?.providers?.[currentProviderId] ?? null;
 
+  // 每次弹窗打开时刷新数据
+  useEffect(() => {
+    const refreshOnOpen = async () => {
+      console.info("[TrayPopup] Refreshing data on popup open");
+      await queryClient.refetchQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.refetchQueries({ queryKey: ["providerSubscription"] });
+    };
+
+    refreshOnOpen();
+  }, []); // 仅在挂载时执行
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
 
