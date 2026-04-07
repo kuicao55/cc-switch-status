@@ -512,6 +512,7 @@ pub fn show_tray_popup(app: &tauri::AppHandle) -> Result<(), AppError> {
         } else {
             // 重新定位并显示
             let window_clone = window.clone();
+            let app_handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 log::info!("[TrayPopup] re-showing existing popup");
                 let _ = window_clone.move_window(Position::TrayCenter);
@@ -520,6 +521,12 @@ pub fn show_tray_popup(app: &tauri::AppHandle) -> Result<(), AppError> {
                 log::info!("[TrayPopup] showed existing popup");
                 let _ = window_clone.set_focus();
                 log::info!("[TrayPopup] focused existing popup");
+                // 发射事件通知前端刷新数据
+                if let Err(e) = app_handle.emit("tray-popup-shown", ()) {
+                    log::error!("Failed to emit tray-popup-shown event: {}", e);
+                } else {
+                    log::info!("[TrayPopup] emitted tray-popup-shown event");
+                }
             });
         }
         return Ok(());
@@ -550,6 +557,7 @@ pub fn show_tray_popup(app: &tauri::AppHandle) -> Result<(), AppError> {
     log::info!("[TrayPopup] popup window built");
 
     // 使用 positioner 精确定位到托盘图标下方
+    let app_handle = app.clone();
     let window_clone = window.clone();
     tauri::async_runtime::spawn(async move {
         log::info!("[TrayPopup] popup spawn begin");
@@ -564,6 +572,12 @@ pub fn show_tray_popup(app: &tauri::AppHandle) -> Result<(), AppError> {
         log::info!("[TrayPopup] popup shown");
         let _ = window_clone.set_focus();
         log::info!("[TrayPopup] popup focused");
+        // 发射事件通知前端刷新数据
+        if let Err(e) = app_handle.emit("tray-popup-shown", ()) {
+            log::error!("Failed to emit tray-popup-shown event: {}", e);
+        } else {
+            log::info!("[TrayPopup] emitted tray-popup-shown event");
+        }
     });
 
     Ok(())

@@ -4,6 +4,7 @@ import { ProviderList } from "./ProviderList";
 import { UsageDisplay } from "./UsageDisplay";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { providersApi, type AppId } from "@/lib/api";
 import { useProvidersQuery, type ProvidersQueryData } from "@/lib/query/queries";
@@ -16,7 +17,7 @@ export function TrayPopup() {
     null,
   );
   const queryClient = useQueryClient();
-  const { data: providersData, isLoading } = useProvidersQuery(activeApp as AppId);
+  const { data: providersData, isLoading, isFetching: isProvidersFetching } = useProvidersQuery(activeApp as AppId);
 
   const providers = useMemo(
     () => Object.values(providersData?.providers ?? {}).slice(0, 5),
@@ -29,12 +30,26 @@ export function TrayPopup() {
   useEffect(() => {
     const refreshOnOpen = async () => {
       console.info("[TrayPopup] Refreshing data on popup open");
-      await queryClient.refetchQueries({ queryKey: ["providers", activeApp] });
-      await queryClient.refetchQueries({ queryKey: ["providerSubscription"] });
+      // 使用 invalidateQueries 强制失效缓存，确保重新获取数据
+      await queryClient.invalidateQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.invalidateQueries({ queryKey: ["providerSubscription"] });
     };
 
     refreshOnOpen();
-  }, []); // 仅在挂载时执行
+  }, []);
+
+  // 监听 Rust 后端发送的 tray-popup-shown 事件
+  useEffect(() => {
+    const unlistenPromise = listen("tray-popup-shown", async () => {
+      console.info("[TrayPopup] Received tray-popup-shown event, refreshing data");
+      await queryClient.invalidateQueries({ queryKey: ["providers", activeApp] });
+      await queryClient.invalidateQueries({ queryKey: ["providerSubscription"] });
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, [activeApp, queryClient]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -79,26 +94,6 @@ export function TrayPopup() {
       unlisten?.();
     };
   }, [activeApp, queryClient]);
-
-  // 点击弹窗外部区域关闭弹窗
-  useEffect(() => {
-    const handleBlur = () => {
-      // 延迟 100ms 关闭，避免点击弹窗内部元素时误触发
-      setTimeout(async () => {
-        try {
-          const popup = await WebviewWindow.getByLabel("tray_popup");
-          if (popup && (await popup.isVisible())) {
-            await popup.hide();
-          }
-        } catch (error) {
-          console.error("[TrayPopup] Failed to hide popup on blur:", error);
-        }
-      }, 100);
-    };
-
-    window.addEventListener("blur", handleBlur);
-    return () => window.removeEventListener("blur", handleBlur);
-  }, []);
 
   const handleProviderSwitch = async (providerId: string) => {
     if (providerId === currentProviderId || switchingProviderId) {
@@ -160,6 +155,7 @@ export function TrayPopup() {
           currentProviderId={currentProviderId}
           switchingProviderId={switchingProviderId}
           isLoading={isLoading}
+          isRefreshing={isProvidersFetching}
           onProviderSwitch={handleProviderSwitch}
           appId={activeApp as AppId}
         />

@@ -1,15 +1,26 @@
+import React from "react";
 import type { Provider } from "@/types";
 import type { AppId } from "@/lib/api/types";
 import { useProviderSubscription } from "./useProviderSubscription";
+import { RefreshCw } from "lucide-react";
 
 interface ProviderListProps {
   providers: Provider[];
   currentProviderId: string;
   switchingProviderId: string | null;
   isLoading: boolean;
+  isRefreshing?: boolean;
   onProviderSwitch: (providerId: string) => Promise<void>;
   appId: AppId;
 }
+
+const formatRelativeTime = (timestamp: number, now: number): string => {
+  const diff = Math.floor((now - timestamp) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+};
 
 const getUsageColor = (percentage: number): string => {
   if (percentage < 30) return "text-green-400";
@@ -104,13 +115,33 @@ export function ProviderList({
   currentProviderId,
   switchingProviderId,
   isLoading,
+  isRefreshing,
   onProviderSwitch,
   appId,
 }: ProviderListProps) {
+  // 获取第一个有 API key 的 provider 来显示刷新时间
+  const firstProviderWithKey = providers.find(p => p.meta?.usage_script?.apiKey);
+  const { isFetching: isAnyFetching, lastQueriedAt } = useProviderSubscription(
+    firstProviderWithKey || null,
+    appId
+  );
+  const [now, setNow] = React.useState(Date.now());
+
+  // 每 30 秒更新当前时间
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const showRefreshing = isRefreshing || isAnyFetching;
+  const showLastRefreshed = !showRefreshing && lastQueriedAt;
+
   if (isLoading) {
     return (
       <div className="p-2">
-        <div className="text-[11px] text-[#666]">Loading providers...</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-[#666]">Loading providers...</span>
+        </div>
       </div>
     );
   }
@@ -118,14 +149,23 @@ export function ProviderList({
   if (providers.length === 0) {
     return (
       <div className="p-2">
-        <div className="text-[11px] text-[#666]">No providers configured</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-[#666]">No providers configured</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="px-2 py-1">
-      <div className="text-[11px] text-[#666] mb-1">Providers</div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-[11px] text-[#666]">Providers</span>
+        {showRefreshing ? (
+          <RefreshCw size={10} className="animate-spin text-[#666]" />
+        ) : showLastRefreshed ? (
+          <span className="text-[9px] text-[#555]">{formatRelativeTime(lastQueriedAt, now)}</span>
+        ) : null}
+      </div>
       <div className="space-y-1">
         {providers.map((provider) => (
           <ProviderRow

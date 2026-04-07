@@ -246,10 +246,10 @@ pub fn run() {
         // 注册 deep-link 插件（处理 macOS AppleEvent 和其他平台的深链接）
         .plugin(tauri_plugin_deep_link::init())
         // 拦截窗口关闭：根据设置决定是否最小化到托盘
+        // 同时处理托盘弹窗的失焦关闭
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let settings = crate::settings::get_settings();
-
                 if settings.minimize_to_tray_on_close {
                     api.prevent_close();
                     let _ = window.hide();
@@ -263,6 +263,13 @@ pub fn run() {
                     }
                 } else {
                     window.app_handle().exit(0);
+                }
+            } else if let tauri::WindowEvent::Focused(focused) = event {
+                // 托盘弹窗失去焦点时自动隐藏
+                log::info!("[TrayPopup] Focus event on '{}': focused={}", window.label(), focused);
+                if window.label() == "tray_popup" && !focused {
+                    log::info!("[TrayPopup] Window lost focus, hiding popup");
+                    let _ = window.hide();
                 }
             }
         })
